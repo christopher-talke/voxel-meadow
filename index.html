@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Voxel Meadow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito:wght@600;700&display=swap">
+</head>
+<body>
+<div id="app">
+  <div id="stage" role="img" aria-label="A voxel island where Murphy, Mali and Bobby wander, play and nap"></div>
+  <div id="tags">
+    <div class="tag" id="tag0"><b>Murphy</b><i></i></div>
+    <div class="tag" id="tag1"><b>Mali</b><i></i></div>
+    <div class="tag" id="tag2"><b>Bobby</b><i></i></div>
+    <div class="tag" id="tag3"><b>Billy</b><i></i></div>
+    <div class="tag" id="tag4"><b>Ashy</b><i></i></div>
+  </div>
+  <div class="ctrl">
+    <button type="button" id="btn-menu" aria-label="Settings" aria-expanded="false" aria-controls="menu" title="Camera, sound and sky">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+    </button>
+  </div>
+  <div class="menu" id="menu" hidden>
+    <section>
+      <h2>Camera</h2>
+      <label class="row"><span>View</span>
+        <select id="sel-cam">
+          <option value="both">Everyone</option>
+          <optgroup label="Follow">
+            <option value="0">Murphy</option><option value="1">Mali</option><option value="2">Bobby</option><option value="3">Billy</option><option value="4">Ashy</option>
+          </optgroup>
+          <option value="orbit">Island orbit</option>
+          <option value="cine">Cinematic</option>
+          <option value="free">Free camera</option>
+        </select>
+      </label>
+      <label class="row sw"><span>Auto switch<small>Cuts to whoever is busiest</small></span><input type="checkbox" id="tg-auto"><i></i></label>
+      <label class="row sw"><span>See through objects<small>Fades trees and the roof in the way</small></span><input type="checkbox" id="tg-see"><i></i></label>
+    </section>
+    <section>
+      <h2>Sound</h2>
+      <label class="row sw"><span>Sound</span><input type="checkbox" id="tg-sound"><i></i></label>
+    </section>
+    <section>
+      <h2>Sky</h2>
+      <label class="row"><span>Time</span>
+        <select id="sel-time"><option value="live">Live clock</option><option value="cycle">Day in 20 min</option><option value="fast">Day in 4 min</option></select>
+      </label>
+      <label class="row"><span>Weather</span>
+        <select id="sel-wx"><option value="auto">Auto</option><option value="clear">Clear</option><option value="cloudy">Cloudy</option><option value="windy">Windy</option><option value="rain">Rain</option><option value="storm">Storm</option></select>
+      </label>
+      <p class="now" id="skynow"></p>
+    </section>
+  </div>
+  <div id="fade" aria-hidden="true"></div>
+  <div id="joy" aria-label="Camera move joystick"><i></i></div>
+  <p class="hint" id="hint">Tap Murphy, Mali or Bobby for a pat, the ball to play, a bed for a nap, or anywhere to take them for a walk. A whistle hangs on the post by the ball.</p>
+</div>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>
