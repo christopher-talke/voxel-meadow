@@ -67,7 +67,5 @@ Object.assign(window.MEADOW, {
   /** Render cost of the last frame and the adaptive-resolution frame time. */
   perf() { const r = renderer.info.render; return { calls: r.calls, tris: r.triangles, points: r.points, lines: r.lines, geos: renderer.info.memory.geometries, tex: renderer.info.memory.textures, frameMs: Math.round(adaptState.ema * 10) / 10, dpr: adaptState.dpr }; },
 });
-import { mockBeyond } from './mockBeyond';
-Object.assign(window.MEADOW, { mockBeyond });
 import { getDirector, setDirector } from '../../engine/director/director';
 Object.assign(window.MEADOW, { setDirector, getDirector });

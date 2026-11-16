@@ -1,4 +1,4 @@
-"""World-beyond mocks: the same orbit and low views with no mock, the sea mock and the sky-island mock.
+"""The world beyond the island: orbit and island-edge views at day and golden hour.
 
 usage (from test/): ../.venv/bin/python beyondshot.py <out-prefix>
 """
@@ -16,10 +16,9 @@ async def main():
         await pg.route('**/*', lambda r: r.abort() if 'fonts.g' in r.request.url else r.continue_())
         await pg.goto(DIST); await pg.wait_for_function('window.MEADOW', timeout=60000)
         await pg.evaluate('MEADOW.simMs = 1763172000000; MEADOW.timeMode = "cycle"; MEADOW.WX.mode = "clear"; MEADOW.WX.kind = "clear"')
-        for tod in ('day', 'golden'):
+        for tod in ('day', 'golden', 'night'):
             await pg.evaluate(f'MEADOW.setTod("{tod}"); MEADOW.advance(20)')
-            for kind in ('none', 'sea', 'sky'):
-                await pg.evaluate(f'MEADOW.mockBeyond({"null" if kind == "none" else repr(kind)})')
+            for kind in ('sky',):
                 d = await pg.evaluate('[MEADOW.ORBIT.d, MEADOW.ORBIT.el]')
                 import math
                 for view, cam in (('orbit', (math.cos(0.6) * d[0] * math.cos(d[1]), d[0] * math.sin(d[1]), math.sin(0.6) * d[0] * math.cos(d[1]), 0, 0, 0, d[0])),

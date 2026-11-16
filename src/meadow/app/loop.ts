@@ -22,6 +22,7 @@ import { updateFrogs } from '../entities/frogs';
 import { mistU, updatePond } from '../world/pond';
 import { clothCheck, ringMesh } from '../ui/interact';
 import { updateTags } from '../ui/menu';
+import { updateBeyond } from '../world/beyond';
 
 export { ORBIT, adaptState, fitOrbit, stepWorld };
 
@@ -73,6 +74,7 @@ function late(dt: number) {
 }
 
 function beforeRender(dt: number) {
+  updateBeyond(dt);
   if (dt) updateTags(dt);
   for (const c of CLOTHS) c.sync();
 }
