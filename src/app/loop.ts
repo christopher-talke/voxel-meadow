@@ -11,6 +11,7 @@ import { sndUpdate } from '../audio/sound';
 import { clockUpdate } from '../world/clock';
 import { whistleUpdate } from '../world/whistle';
 import { updateFx } from '../fx/sprites';
+import { updateWetMarks } from '../fx/wet';
 import { updateFish } from '../entities/behaviours';
 import { CLOTHS } from '../entities/cloth';
 import { updateBall } from '../entities/ball';
@@ -94,7 +95,7 @@ export function stepWorld(dt) {
   updateBall(dt);
   for (const c of CLOTHS) c.step(dt);
   clothCheck(dt);
-  updateFx(dt); updateFish(dt, state.T); updatePond(dt, state.T); updateFrogs(dt, state.T);
+  updateFx(dt); updateWetMarks(dt); updateFish(dt, state.T); updatePond(dt, state.T); updateFrogs(dt, state.T);
   updateEnv(dt, focus);
   clockUpdate();
 }

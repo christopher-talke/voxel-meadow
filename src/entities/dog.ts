@@ -9,6 +9,7 @@ import { WX, todKey, underRoof } from '../sim/sky';
 import { cats, dogs } from './registry';
 import { SFX, SND, sndActivity } from '../audio/sound';
 import { dropTex, heartTex, puff, zTex } from '../fx/sprites';
+import { type WetUniforms, dampMark, wetFur, wetRand } from '../fx/wet';
 import { canStep, cellPt, findPath, moved0, nearestWalk, randLand } from '../nav/path';
 import type { Step } from './behaviours';
 import { FISH, mkFish, PKEYS, PLACES, POSES, S, SPEED, dogMat, dogMeshes, fishStand, hideSpot, isNight, padExit, pickFish, pileSlot, slipChance } from './behaviours';
@@ -77,6 +78,8 @@ export class Dog {
   lookYaw: number;
   mark: any;
   mat: THREE.MeshLambertMaterial;
+  wetU: WetUniforms;
+  markT = 0;
   mood: any;
   moodT: any;
   mv: any;
@@ -132,7 +135,7 @@ export class Dog {
   constructor(idx: number, data: any, o: any) {
     this.idx = idx; this.p = o.persona; this.name = o.name;
     this.root = new THREE.Group(); this.root.scale.setScalar(K); if (this.p.size) this.root.scale.set(K * this.p.size[0], K * this.p.size[1], K * this.p.size[2]); scene.add(this.root);
-    const pv = data.pivots, bp = pv.body; this.mat = dogMat.clone();
+    const pv = data.pivots, bp = pv.body; this.mat = dogMat.clone(); this.wetU = wetFur(this.mat, 33 * K * (this.p.size ? this.p.size[1] : 1));
     this.bodyJ = new THREE.Group(); this.bodyJ.position.set(0, bp[1], 0); this.bodyJ.rotation.order = 'ZXY';
     this.root.add(this.bodyJ);
     const mk = (g, piv) => {
@@ -756,7 +759,9 @@ export class Dog {
       const inW = !!(colNow && (colNow.type === 'shallow' || colNow.type === 'deep') && !colNow.jetty) && !this.lily;
       if (!inW && this.poseName !== 'shake') this.wet = Math.max(0, this.wet - dt / 45);
       this.wetV = damp(this.wetV, this.wet > 0.02 ? Math.min(1, this.wet * 1.4) : 0, 2.5, dt);
-      this.mat.color.setRGB(1 - 0.4 * this.wetV, 1 - 0.32 * this.wetV, 1 - 0.2 * this.wetV);
+      this.wetU.uWet.value = this.wetV; this.wetU.uRootY.value = this.rootY;
+      // a dripping animal standing on dry ground leaves damp marks
+      if (this.wetV > 0.35 && !this.swimming && !inW && this.elev < 0.5 && this.ovY === null && (this.markT -= dt * this.wetV) <= 0) { this.markT = 0.8 + wetRand() * 0.9; dampMark(this.pos.x, this.rootY - 0.5 * K, this.pos.y, this.wetV); }
       if (this.wetV > 0.3 && !this.swimming && rand() < dt * 3 * this.wetV) puff(dropTex, new THREE.Vector3(this.pos.x + rr(-2, 2), this.rootY + 3, this.pos.y + rr(-2, 2)), 0.45, 0.6, -2, 0, 0, 0, 14);
       this.shakeCd = Math.max(0, (this.shakeCd || 0) - dt);
       const inRain = WX.rain > 0.2 && !underRoof(this.pos.x, this.pos.y) && !(this.onRoof);
