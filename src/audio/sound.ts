@@ -7,62 +7,19 @@ import { WX, env, underRoof } from '../engine/sky/sky';
 import { ents } from '../entities/registry';
 import { showHint } from '../ui/hint';
 import { hooks } from '../engine/core/hooks';
+import { SND, initSynth, noiseHit, sndNow, sndOut, tone, updateListener } from '../engine/audio/synth';
+export { SND };
 
 // ================= sound: synthesised ambience and placeholder animal voices (no files needed) =================
-/** The synth's shared state. The audio graph is built lazily on the first unmute (sndInit), so ctx and the buses are unset until then. */
-interface SoundState {
-  on: boolean;
-  ctx: AudioContext | null;
-  t: number;
-  timers: Record<string, number>;
-  loops: Record<string, any>;
-  master: GainNode;
-  amb: GainNode;
-  sfx: GainNode;
-  white: AudioBuffer;
-  brown: AudioBuffer;
-}
-export const SND = { on: false, ctx: null, t: 0, timers: {}, loops: {} } as unknown as SoundState;
-function sndInit() {
-  if (SND.ctx) return SND.ctx;
-  const C = new (window.AudioContext || (window as any).webkitAudioContext)() as AudioContext; SND.ctx = C;
-  const comp = C.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 3; comp.connect(C.destination);
-  SND.master = C.createGain(); SND.master.gain.value = 0; SND.master.connect(comp);
-  SND.amb = C.createGain(); SND.amb.gain.value = 0.9; SND.amb.connect(SND.master);
-  SND.sfx = C.createGain(); SND.sfx.gain.value = 1.4; SND.sfx.connect(SND.master);
-  const mkNoise = brown => { const n = C.sampleRate * 3, b = C.createBuffer(1, n, C.sampleRate), d = b.getChannelData(0); let last = 0;
-    for (let i = 0; i < n; i++) { const w = Math.random() * 2 - 1; if (brown) { last = (last + 0.02 * w) / 1.02; d[i] = last * 3.5; } else d[i] = w; } return b; };
-  SND.white = mkNoise(false); SND.brown = mkNoise(true);
-  const loop = (buf, filters, g0) => { const s = C.createBufferSource(); s.buffer = buf; s.loop = true; s.loopStart = Math.random(); let n = s; for (const f of filters) { n.connect(f); n = f; } const g = C.createGain(); g.gain.value = g0; n.connect(g); g.connect(SND.amb); s.start(); return { s, g, f: filters }; };
-  const bq = (type, f, q = 0.7) => { const b = C.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q; return b; };
+// the meadow's looping ambience: weather, the lake, the falls and the leaves
+const meadowLoops = (loop, bq) => {
   SND.loops.wind = loop(SND.brown, [bq('bandpass', 420, 0.6)], 0);
   SND.loops.rain = loop(SND.white, [bq('highpass', 900), bq('lowpass', 7000)], 0);
   SND.loops.roofRain = loop(SND.white, [bq('bandpass', 2400, 1.4)], 0);
   SND.loops.water = loop(SND.brown, [bq('lowpass', 520)], 0);
   SND.loops.falls = loop(SND.brown, [bq('lowpass', 900), bq('highpass', 120)], 0);
   SND.loops.leaves = loop(SND.white, [bq('bandpass', 5200, 0.9)], 0);
-  return C;
-}
-const sndNow = () => SND.ctx!.currentTime;
-// a node chain ending in a panner placed in the world (or straight to a bus when pos is null)
-function sndOut(pos: THREE.Vector3 | null, gain: number, bus?: AudioNode) {
-  const C = SND.ctx!, g = C.createGain(); g.gain.value = gain;
-  if (pos) { const p = C.createPanner(); p.panningModel = 'HRTF'; p.distanceModel = 'inverse'; p.refDistance = 45; p.rolloffFactor = 1.3; p.maxDistance = 2000;
-    if (p.positionX) { p.positionX.value = pos.x; p.positionY.value = pos.y; p.positionZ.value = pos.z; } else p.setPosition(pos.x, pos.y, pos.z);
-    g.connect(p); p.connect(bus || SND.sfx); }
-  else g.connect(bus || SND.sfx);
-  return g;
-}
-function env3(g: GainNode, t: number, a: number, peak: number, d: number) { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d); }
-function tone(out: AudioNode, type: OscillatorType, f0: number, f1: number, t: number, dur: number, peak = 0.5, a = 0.008): OscillatorNode {
-  const C = SND.ctx!, o = C.createOscillator(), g = C.createGain(); o.type = type;
-  o.frequency.setValueAtTime(f0, t); if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t + dur);
-  o.connect(g); g.connect(out); env3(g, t, a, peak, dur); o.start(t); o.stop(t + a + dur + 0.05); return o;
-}
-function noiseHit(out: AudioNode, t: number, dur: number, type: BiquadFilterType, f: number, q: number, peak: number, brown?: boolean) {
-  const C = SND.ctx!, s = C.createBufferSource(); s.buffer = brown ? SND.brown : SND.white; const b = C.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q;
-  const g = C.createGain(); s.connect(b); b.connect(g); g.connect(out); env3(g, t, 0.01, peak, dur); s.start(t, Math.random() * 2); s.stop(t + dur + 0.1); return b;
-}
+};
 const entPos = d => new THREE.Vector3(d.pos.x, d.rootY + 8, d.pos.y);
 const VOICE = { Murphy: 1.15, Mali: 1.3, Bobby: 0.82, Billy: 1.1, Ashy: 0.92 };
 export const SFX = {
@@ -118,10 +75,8 @@ export function sndActivity(d, text) {
 const SND_DAY = () => smooth(-6, 4, env.el) * (1 - Math.min(1, WX.rain * 1.6));
 export function sndUpdate(dt) {
   if (!SND.on || !SND.ctx) return;
-  const C = SND.ctx, L = C.listener, cp = camera.position, t = C.currentTime;
-  const fw = V3.set(0, 0, -1).applyQuaternion(camera.quaternion);
-  if (L.positionX) { L.positionX.value = cp.x; L.positionY.value = cp.y; L.positionZ.value = cp.z; L.forwardX.value = fw.x; L.forwardY.value = fw.y; L.forwardZ.value = fw.z; L.upX.value = 0; L.upY.value = 1; L.upZ.value = 0; }
-  else { L.setPosition(cp.x, cp.y, cp.z); L.setOrientation(fw.x, fw.y, fw.z, 0, 1, 0); }
+  const C = SND.ctx, cp = camera.position, t = C.currentTime;
+  updateListener();
   SND.t += dt;
   // beds of sound
   const set = (lp, v, rate = 1.5) => lp.g.gain.setTargetAtTime(v, t, rate);
@@ -155,7 +110,7 @@ export function sndUpdate(dt) {
 export const tgSound = $<HTMLInputElement>('tg-sound');
 function setSound(on: boolean, quiet?: boolean) {
   SND.on = on; store.set('meadow-sound', on ? '1' : '0'); tgSound.checked = on;
-  if (on) { try { sndInit(); SND.ctx!.resume(); SND.master.gain.setTargetAtTime(0.85, SND.ctx!.currentTime, 0.4); } catch (e) { SND.on = false; } }
+  if (on) { try { initSynth(meadowLoops); SND.ctx!.resume(); SND.master.gain.setTargetAtTime(0.85, SND.ctx!.currentTime, 0.4); } catch (e) { SND.on = false; } }
   else if (SND.ctx) SND.master.gain.setTargetAtTime(0, SND.ctx.currentTime, 0.2);
   if (!quiet) showHint(on ? 'Sound on.' : 'Sound off.', 1600);
 }
