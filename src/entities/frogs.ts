@@ -8,8 +8,6 @@ import { env } from '../sim/sky';
 import { ents } from './registry';
 import { SFX, SND } from '../audio/sound';
 import { dropTex, puff } from '../fx/sprites';
-import { applyBlobbyToonMaterial } from '../render/blobbyToonMaterial';
-import { attachEntityOutline, syncInstancedOutline } from '../render/entityOutline';
 
 // ================= frogs: they sit on the lily pads and the banks, croak at dusk and plop away from cats =================
 const { rand, rr } = seeded(5150);
@@ -35,8 +33,6 @@ const N = 7, SCALE = 0.85;
 export interface Frog { x: number; z: number; y: number; h: number; state: 'sit' | 'hop' | 'swim'; pad: Pad | null; t: number; hop: any; tgt: any; ph: number; croak: number; croakT: number; blink: number; }
 export const FROGS: Frog[] = [];
 const mesh = new THREE.InstancedMesh(UNIT, new THREE.MeshLambertMaterial(), N * PARTS.length);
-applyBlobbyToonMaterial(mesh.material as THREE.Material, { top: 0xb6d98d, bottom: 0x5e8d42, gloss: 0.22, rim: 0.11, ambient: 0.43 });
-const outlineMesh = attachEntityOutline(mesh, 0.042) as THREE.InstancedMesh;
 mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false; scene.add(mesh);
 {
   const c = new THREE.Color(), free = PADS.slice().sort(() => rand() - 0.5);
@@ -140,5 +136,4 @@ export function updateFrogs(dt: number, t: number) {
     }
   }
   mesh.instanceMatrix.needsUpdate = true;
-  syncInstancedOutline(mesh, outlineMesh);
 }

@@ -3,8 +3,6 @@ import * as THREE from 'three';
 import { state } from '../core/state';
 import { V2, V3, clamp, headingTo, lerp, rand, rr, smooth, wrapA } from '../core/util';
 import { scene } from '../render/stage';
-import { applyBlobbyToonMaterial } from '../render/blobbyToonMaterial';
-import { attachEntityOutline } from '../render/entityOutline';
 import { B, FIELD, G, JETTY, K, WATER_Y, WOODS, bedTop, cellIdx, colAt, colXZ, deckH, gyAt, idxOf, roofTop } from '../world/layout';
 import { LOOK, TREES } from '../world/decor';
 import { todKey } from '../sim/sky';
@@ -71,7 +69,6 @@ const CATP = Object.assign({}, PERSONA.bobby, {
 PERSONA.cat1 = Object.assign({}, CATP, { swish: 0.55 }); PERSONA.cat2 = Object.assign({}, CATP, { swish: 1.15, labels: { wander: 'Strolling about', sniff: 'Investigating something', sit: 'Sitting like a statue', sun: 'Sunning themselves' } });
 export const SPEED = { dribble: 215 * K, crawl: 9 * K, walk: 30 * K, sniffwalk: 13 * K, trot: 50 * K, run: 105 * K, wade: 16 * K };
 export const dogMat = new THREE.MeshLambertMaterial();
-applyBlobbyToonMaterial(dogMat, { top: 0xf7c6aa, bottom: 0xc58f6a, gloss: 0.28, rim: 0.11, ambient: 0.44 });
 export const dogMeshes: THREE.InstancedMesh[] = [];
 
 
@@ -102,8 +99,6 @@ export const FISH: any[] = [];
 export let mkFish: () => any = () => new THREE.Group();
 {
   const bodyM = new THREE.MeshLambertMaterial({ color: 0xff8f3a }), tailM = new THREE.MeshLambertMaterial({ color: 0xf4c26b });
-  applyBlobbyToonMaterial(bodyM, { top: 0xffc38c, bottom: 0xca6b2e, gloss: 0.32, rim: 0.1, ambient: 0.45 });
-  applyBlobbyToonMaterial(tailM, { top: 0xffd7a1, bottom: 0xd39a4e, gloss: 0.24, rim: 0.08, ambient: 0.45 });
   const mkFish0 = () => { const g: any = new THREE.Group(); const b = new THREE.Mesh(new THREE.BoxGeometry(4.2, 1.7, 1.5), bodyM), t = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.9, 0.4), tailM); t.position.x = -2.7; g.add(b); g.tail = t; g.add(t); return g; };
   mkFish = mkFish0;
   const spots = SHALLOWS.filter(c => fishStand({ x: c.i * B, z: c.j * B }));
@@ -111,7 +106,6 @@ export let mkFish: () => any = () => new THREE.Group();
     const c = spots[Math.floor(rand() * spots.length)], m = mkFish(); m.scale.setScalar(1);
     const f = { m, x: c.i * B + rr(-6, 6), z: c.j * B + rr(-6, 6), hx: c.i * B, hz: c.j * B, h: rand() * 6.28, sp: rr(2, 4), scare: 0, caught: false, respawn: 0, tt: rr(1, 4), ph: rr(0, 6) };
     m.position.set(f.x, WATER_Y - 2.6, f.z);
-    m.traverse((o: THREE.Object3D) => { if ((o as THREE.Mesh).isMesh) attachEntityOutline(o as THREE.Mesh, 0.04); });
     scene.add(m); FISH.push(f);
   }
 }

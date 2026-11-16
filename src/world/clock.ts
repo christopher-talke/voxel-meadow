@@ -4,7 +4,6 @@ import { scene } from '../render/stage';
 import { B, block } from './layout';
 import { UNIT, groundTop } from './mesh';
 import { WX, env, simDate } from '../sim/sky';
-import { applyBlobbyToonMaterial } from '../render/blobbyToonMaterial';
 
 // ================= the park clock, so the meadow's time is part of the world =================
 export const CLOCK = { x: -44, z: -60 } as { x: number; z: number; g: THREE.Group; head: THREE.Group };
@@ -13,8 +12,6 @@ let clockFaceMat;
 {
   const g = new THREE.Group(), gy = Math.max(0, groundTop(CLOCK.x, CLOCK.z));
   const iron = new THREE.MeshLambertMaterial({ color: 0x2c4536 }), brass = new THREE.MeshLambertMaterial({ color: 0xb8954a, emissive: 0x2a1e08 });
-  applyBlobbyToonMaterial(iron, { top: 0xaec4b4, bottom: 0x3d5a4d, gloss: 0.15, rim: 0.06, ambient: 0.44 });
-  applyBlobbyToonMaterial(brass, { top: 0xf2cc7d, bottom: 0x8a672e, gloss: 0.32, rim: 0.1, ambient: 0.46 });
   const bx = (w, h, d, m, x, y, z) => { const b = new THREE.Mesh(UNIT, m); b.scale.set(w, h, d); b.position.set(x, y, z); b.castShadow = true; b.receiveShadow = true; g.add(b); return b; };
   bx(5, 1.6, 5, iron, 0, 0.8, 0); bx(3.4, 1.4, 3.4, iron, 0, 2.3, 0); bx(1.5, 26, 1.5, iron, 0, 15, 0); bx(2.4, 1, 2.4, brass, 0, 27.6, 0);
   const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d')!;
@@ -26,11 +23,9 @@ let clockFaceMat;
   [[12, 0], [3, 1], [6, 2], [9, 3]].forEach(([n, q]) => { const a = q * Math.PI / 2; x.fillText(String(n), 128 + Math.sin(a) * 76, 128 - Math.cos(a) * 76); });
   const tex = new THREE.CanvasTexture(c);
   clockFaceMat = new THREE.MeshLambertMaterial({ map: tex, emissive: 0xffe7b0, emissiveMap: tex, emissiveIntensity: 0 });
-  applyBlobbyToonMaterial(clockFaceMat, { top: 0xfaf3df, bottom: 0xcfc4a5, gloss: 0.08, rim: 0.03, ambient: 0.5 });
   const head = new THREE.Group(); head.position.y = 34; g.add(head);
   const rim = new THREE.Mesh(new THREE.CylinderGeometry(6.2, 6.2, 2.4, 28), iron); rim.rotation.x = Math.PI / 2; rim.castShadow = true; head.add(rim);
   const handM = new THREE.MeshLambertMaterial({ color: 0x1d1c1a });
-  applyBlobbyToonMaterial(handM, { top: 0x514b45, bottom: 0x1d1c1a, gloss: 0.2, rim: 0.08, ambient: 0.4 });
   for (const s of [1, -1]) {
     const face = new THREE.Mesh(new THREE.CircleGeometry(5.6, 28), clockFaceMat); face.position.z = 1.25 * s; if (s < 0) face.rotation.y = Math.PI; head.add(face);
     const mk = (len, w) => { const p = new THREE.Group(); p.position.z = 1.45 * s; const m = new THREE.Mesh(UNIT, handM); m.scale.set(w, len, 0.25); m.position.y = len / 2 - 0.6; p.add(m); head.add(p); return p; };

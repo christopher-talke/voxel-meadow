@@ -9,7 +9,6 @@ import { SND, tgSound } from '../audio/sound';
 import { timeText } from '../world/clock';
 import { setCamMode } from '../camera/camera';
 import { followDog } from './interact';
-import { isSmoothToonRenderer, setSmoothToonRenderer } from '../render/renderFlags';
 
 const WALLPAPER_BUILD = import.meta.env.PROD;
 
@@ -17,14 +16,12 @@ const WALLPAPER_BUILD = import.meta.env.PROD;
 const menuEl = $('menu'), btnMenu = $('btn-menu'), skyNow = $('skynow');
 const selCam = $<HTMLSelectElement>('sel-cam'), selTime = $<HTMLSelectElement>('sel-time'), selWx = $<HTMLSelectElement>('sel-wx');
 const tgAuto = $<HTMLInputElement>('tg-auto'), tgSee = $<HTMLInputElement>('tg-see'), tgTags = $<HTMLInputElement>('tg-tags'), tagsEl = $('tags');
-const tgSmooth = $<HTMLInputElement>('tg-smooth');
 const WXNAME = { clear: 'clear', cloudy: 'cloudy', windy: 'windy', rain: 'raining', storm: 'stormy' };
 let menuT = 0, idleT = 0;
 if (WALLPAPER_BUILD) document.documentElement.setAttribute('data-wallpaper', '1');
 export function syncMenu() {
   selCam.value = String(state.camMode); selTime.value = state.timeMode; selWx.value = WX.mode;
   tgAuto.checked = state.autoCam; tgSee.checked = state.seeThrough; tgTags.checked = state.showTags; tgSound.checked = SND.on;
-  tgSmooth.checked = isSmoothToonRenderer();
   skyNow.textContent = timeText() + ' in the meadow, ' + WXNAME[WX.kind];
 }
 hooks.syncMenu = syncMenu;
@@ -38,7 +35,6 @@ selWx.addEventListener('change', () => { const v = selWx.value; WX.mode = v; sto
 tgAuto.addEventListener('change', () => { state.autoCam = tgAuto.checked; store.set('meadow-autocam', state.autoCam ? '1' : '0'); state.autoT = 99; });
 tgSee.addEventListener('change', () => { state.seeThrough = tgSee.checked; store.set('meadow-see', state.seeThrough ? '1' : '0'); });
 tgTags.addEventListener('change', () => { state.showTags = tgTags.checked; store.set('meadow-tags', state.showTags ? '1' : '0'); tagsEl.hidden = !state.showTags; shown.fill(''); });
-tgSmooth.addEventListener('change', () => { setSmoothToonRenderer(tgSmooth.checked); });
 tagsEl.hidden = !state.showTags;
 // the menu closes itself after a quiet spell, and the button fades back until you move or touch
 const appEl = $('app');

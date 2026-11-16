@@ -1,10 +1,6 @@
 import * as THREE from 'three';
 import { clamp, jit, mixHex, noise, rand, rr } from '../core/util';
 import { DPR, scene } from '../render/stage';
-import { applyBlobbyToonMaterial } from '../render/blobbyToonMaterial';
-import { attachEntityOutline } from '../render/entityOutline';
-import { buildSmoothTerrainMesh } from './smoothTerrainMesher';
-import { isSmoothToonRenderer, onSmoothToonRendererChange } from '../render/renderFlags';
 import { B, BEDS, DECK, FIELD, POLE, SH, SHELTER_POSTS, colAt, colXZ, cols, isWaterCol } from './layout';
 import { BALL, BALL_R, CHERRY, DK, ballBoxes, boxes, decor } from './decor';
 
@@ -87,13 +83,10 @@ for (const [key, col] of decor) {
   }
 }
 export const vcMat = new THREE.MeshLambertMaterial({ vertexColors: true });
-applyBlobbyToonMaterial(vcMat, { top: 0xf1e7dc, bottom: 0xcbbba7, gloss: 0.03, rim: 0.02, ambient: 0.46 });
 /** A static mesh: never moves, so its matrices are computed once rather than every frame. */
 export const freeze = <T extends THREE.Object3D>(o: T): T => { o.updateMatrix(); o.updateMatrixWorld(true); o.matrixAutoUpdate = false; return o; };
 const chunked = (map: Map<number, any>, mat: THREE.Material, out?: THREE.Mesh[]) => { for (const M of map.values()) { if (!M.v) continue; const m = finish(M, mat); m.frustumCulled = true; m.geometry.computeBoundingSphere(); m.receiveShadow = m.castShadow = true; scene.add(freeze(m)); if (out) out.push(m); } };
 chunked(TERR_CH, vcMat, TERR_MESHES);
-const smoothTerrainMesh = freeze(buildSmoothTerrainMesh());
-scene.add(smoothTerrainMesh);
 export const cutU = { uFocus: { value: new THREE.Vector3() }, uCam: { value: new THREE.Vector3() }, uRoof: { value: 0 }, uCutOn: { value: 1 } };
 const decorMat = new THREE.MeshLambertMaterial({ vertexColors: true });
 decorMat.onBeforeCompile = sh => {
@@ -107,17 +100,9 @@ decorMat.onBeforeCompile = sh => {
       if (n < smoothstep(r, r * 0.5, d)) discard;
     }`);
 };
-applyBlobbyToonMaterial(decorMat, { top: 0xf5e8dd, bottom: 0xcdbda9, gloss: 0.08, rim: 0.05, ambient: 0.44 });
 chunked(DEC_CH, decorMat);
 export const waterMat = new THREE.MeshLambertMaterial({ color: 0x5fb3d9, vertexColors: true, transparent: true, opacity: 0.74, side: THREE.DoubleSide });
-applyBlobbyToonMaterial(waterMat, { top: 0xb7d8ee, bottom: 0x87b4d0, gloss: 0.14, rim: 0.08, ambient: 0.5 });
 const waterMesh = finish(WAT, waterMat); waterMesh.receiveShadow = true; scene.add(freeze(waterMesh));
-const applyTerrainPath = (smooth: boolean) => {
-  TERR_MESHES.forEach(m => m.visible = true); // keep stable base terrain while smooth pass iterates
-  smoothTerrainMesh.visible = smooth;
-};
-applyTerrainPath(isSmoothToonRenderer());
-onSmoothToonRendererChange(applyTerrainPath);
 
 export const UNIT = new THREE.BoxGeometry(1, 1, 1);
 function buildBoxes(list, mat, cast = true) {
@@ -131,7 +116,6 @@ function buildBoxes(list, mat, cast = true) {
   return m;
 }
 const boxMat = new THREE.MeshLambertMaterial();
-applyBlobbyToonMaterial(boxMat, { top: 0xf6e9de, bottom: 0xd0bfab, gloss: 0.2, rim: 0.1, ambient: 0.44 });
 scene.add(freeze(buildBoxes(boxes, boxMat)));
 const bedBoxes: number[][] = [];
 for (const bd of BEDS) {
@@ -177,23 +161,19 @@ shMat.onBeforeCompile = sh => {
     // looking at someone under the shelter from above: the roof thins to a faint lattice
     if (uRoof > 0.0 && vWP.y > 25.0 && n < uRoof * 0.86) discard;`);
 };
-applyBlobbyToonMaterial(shMat, { top: 0xf1e1d2, bottom: 0xc29f7f, gloss: 0.12, rim: 0.04, ambient: 0.42 });
 const shelterMesh = buildBoxes(shBoxes, shMat); scene.add(freeze(shelterMesh));
 // a lantern under the shelter roof that glows warm after dark
 export const lantern = new THREE.PointLight(0xffc27a, 0, 95, 1.6);
 lantern.position.set(-73, 17, 0); scene.add(lantern);
 export const lanternMat = new THREE.MeshLambertMaterial({ color: 0x3a2a1a, emissive: 0xffc27a, emissiveIntensity: 0 });
-applyBlobbyToonMaterial(lanternMat, { top: 0xffd7a0, bottom: 0x8d5f34, gloss: 0.35, rim: 0.12, ambient: 0.48 });
 { const g = new THREE.Group(); const glass = new THREE.Mesh(UNIT, lanternMat); glass.scale.set(2.6, 3.4, 2.6); g.add(glass);
   const cap = new THREE.Mesh(UNIT, new THREE.MeshLambertMaterial({ color: 0x2a2420 })); cap.scale.set(3.2, 0.7, 3.2); cap.position.y = 2; g.add(cap);
   const cord = new THREE.Mesh(UNIT, new THREE.MeshLambertMaterial({ color: 0x2a2420 })); cord.scale.set(0.3, 6, 0.3); cord.position.y = 5.3; g.add(cord);
   g.position.set(-73, 22, 0); scene.add(g); g.traverse(o => freeze(o)); }
 export const ballMesh = buildBoxes(ballBoxes, boxMat); ballMesh.position.set(BALL.x, BALL_R, BALL.z); scene.add(ballMesh);
-attachEntityOutline(ballMesh, 0.045);
 
 // clouds
 export const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x58616e});
-applyBlobbyToonMaterial(cloudMat, { top: 0xffffff, bottom: 0xe4e9f0, gloss: 0.04, rim: 0.03, ambient: 0.62 });
 export const clouds: THREE.Group[] = [];
 for (let i = 0; i < 14; i++) {
   const parts = [[0, 0, 0, rr(36, 52), rr(10, 14), rr(24, 32), 0xffffff]];

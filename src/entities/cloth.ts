@@ -5,7 +5,6 @@ import { scene } from '../render/stage';
 import { BEDS, BL, GRAV, K, NOSE } from '../world/layout';
 import { dogs, ents } from './registry';
 import { groundAtXZ } from './behaviours';
-import { applyBlobbyToonMaterial } from '../render/blobbyToonMaterial';
 
 // ================= cloth: the picnic blanket and the two bed blankets =================
 function clothTex(kind: string) {
@@ -72,7 +71,6 @@ export class Cloth {
     const geo = new THREE.PlaneGeometry(this.w, this.d, nx - 1, nz - 1);
     this.geo = geo;
     const mat = new THREE.MeshLambertMaterial({ map: clothTex(this.tex), side: THREE.DoubleSide });
-    applyBlobbyToonMaterial(mat, { top: 0xffffff, bottom: 0xd8d2c8, gloss: 0.12, rim: 0.03, ambient: 0.52 });
     this.mesh = new THREE.Mesh(geo, mat);
     this.mesh.castShadow = true; this.mesh.receiveShadow = true; this.mesh.frustumCulled = false; this.mesh.userData.cloth = this;
     scene.add(this.mesh); this.sync();

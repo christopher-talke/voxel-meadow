@@ -15,9 +15,6 @@ import { FISH, mkFish, PKEYS, PLACES, POSES, S, SPEED, dogMat, dogMeshes, fishSt
 import { PAD_CHAIN, PAD_END, PAD_START } from '../world/pond';
 import { type Cloth, CLOTHS, bedBlanket, bedMade, clothHeight } from './cloth';
 import { SB, ballLand, ballPt, dribbleTarget, grabWithMouth, lineTarget, releaseGrab, steerTo, validCell } from './ball';
-import { attachEntityOutline } from '../render/entityOutline';
-import { applyBlobbyToonMaterial } from '../render/blobbyToonMaterial';
-import { isSmoothToonRenderer, onSmoothToonRendererChange } from '../render/renderFlags';
 
 /** Behaviours that ambient urges (a shake, the weather, a spook) should not cut into. */
 const BUSY = new Set(['hello', 'adventure', 'chase', 'zoomies', 'burst', 'spook', 'ball', 'contest', 'lilyhop']);
@@ -132,24 +129,16 @@ export class Dog {
   wet: number;
   wetV: number;
   zT: number;
-  voxelParts: THREE.InstancedMesh[];
-  blobRoot: THREE.Group;
-  blobParts: THREE.Mesh[];
-  blobTint: THREE.MeshLambertMaterial;
   constructor(idx: number, data: any, o: any) {
     this.idx = idx; this.p = o.persona; this.name = o.name;
     this.root = new THREE.Group(); this.root.scale.setScalar(K); if (this.p.size) this.root.scale.set(K * this.p.size[0], K * this.p.size[1], K * this.p.size[2]); scene.add(this.root);
     const pv = data.pivots, bp = pv.body; this.mat = dogMat.clone();
     this.bodyJ = new THREE.Group(); this.bodyJ.position.set(0, bp[1], 0); this.bodyJ.rotation.order = 'ZXY';
     this.root.add(this.bodyJ);
-    this.voxelParts = [];
-    this.blobParts = [];
     const mk = (g, piv) => {
       const arr = data.groups[g], n = arr.length / 4, m = new THREE.InstancedMesh(UNIT, this.mat, n), ob = new THREE.Object3D(), c = new THREE.Color();
       for (let i = 0; i < n; i++) { ob.position.set(arr[i * 4] - piv[0], arr[i * 4 + 1] - piv[1], arr[i * 4 + 2] - piv[2]); ob.updateMatrix(); m.setMatrixAt(i, ob.matrix); c.set(data.pal[arr[i * 4 + 3]]); m.setColorAt(i, c); }
       m.castShadow = m.receiveShadow = true; m.frustumCulled = false; m.userData.dog = this; dogMeshes.push(m);
-      attachEntityOutline(m, 0.045);
-      this.voxelParts.push(m);
       return m;
     };
     this.bodyJ.add(mk('body', bp));
@@ -160,63 +149,6 @@ export class Dog {
     this.earJ = { el: earJ('el'), er: earJ('er') };
     this.earLift = 0; this.earSwing = 0;
     if (this.p.cat) { this.fishM = mkFish(); this.fishM.scale.setScalar(2.1); this.fishM.position.set(9, -4, 0); this.fishM.visible = false; this.headJ.add(this.fishM); }
-    this.blobTint = new THREE.MeshLambertMaterial({ color: this.p.cat ? 0xd8c7b1 : this.name === 'Murphy' ? 0xc88a63 : this.name === 'Mali' ? 0xd6b596 : this.name === 'Bobby' ? 0xa88c72 : 0xc2aa92 });
-    applyBlobbyToonMaterial(this.blobTint, { top: this.p.cat ? 0xf0e0ce : 0xf6d4bc, bottom: this.p.cat ? 0x9c8269 : 0x8c6750, gloss: 0.3, rim: 0.12, ambient: 0.44 });
-    const accentMat = new THREE.MeshLambertMaterial({ color: this.p.cat ? 0xf2e3d3 : this.name === 'Bobby' ? 0xc4ae95 : 0xf2dcc4 });
-    applyBlobbyToonMaterial(accentMat, { top: 0xf7ede1, bottom: 0xc8aa8c, gloss: 0.22, rim: 0.08, ambient: 0.46 });
-    const noseMat = new THREE.MeshLambertMaterial({ color: 0x2b231f });
-    applyBlobbyToonMaterial(noseMat, { top: 0x443731, bottom: 0x171110, gloss: 0.5, rim: 0.04, ambient: 0.32 });
-    const blobPart = (parent: THREE.Object3D, geo: THREE.BufferGeometry, pos: [number, number, number], scl: [number, number, number], mat: THREE.Material = this.blobTint) => {
-      const m = new THREE.Mesh(geo, mat);
-      m.position.set(pos[0], pos[1], pos[2]);
-      m.scale.set(scl[0], scl[1], scl[2]);
-      m.castShadow = m.receiveShadow = true;
-      parent.add(m);
-      attachEntityOutline(m, 0.042);
-      this.blobParts.push(m);
-      return m;
-    };
-    this.blobRoot = new THREE.Group();
-    this.root.add(this.blobRoot);
-    if (this.p.cat) {
-      blobPart(this.bodyJ, new THREE.SphereGeometry(8, 18, 14), [0, 5.8, 0], [1.45, 0.85, 0.78]);
-      blobPart(this.bodyJ, new THREE.SphereGeometry(4.4, 14, 12), [5.2, 5.7, 0], [0.9, 0.72, 0.68]); // shoulder blend
-      blobPart(this.headJ, new THREE.SphereGeometry(4.1, 16, 12), [5.4, 2.25, 0], [1.0, 0.86, 0.84]);
-      blobPart(this.headJ, new THREE.SphereGeometry(2.3, 12, 10), [8.2, 1.25, 0], [1.0, 0.62, 0.66], accentMat); // short cat muzzle
-      blobPart(this.tailJ, new THREE.SphereGeometry(2.4, 12, 10), [-2.9, 1.0, 0], [2.8, 0.5, 0.5]); // long slim tail
-      for (const k of LEGS) blobPart(this.legJ[k], new THREE.SphereGeometry(2.2, 10, 10), [0, -6.3, 0], [0.62, 2.1, 0.62]);
-      blobPart(this.earJ.el, new THREE.ConeGeometry(1.5, 3.8, 10), [0.15, 1.7, 0], [0.78, 1.0, 0.7]); // pointed cat ears
-      blobPart(this.earJ.er, new THREE.ConeGeometry(1.5, 3.8, 10), [0.15, 1.7, 0], [0.78, 1.0, 0.7]);
-    } else {
-      blobPart(this.bodyJ, new THREE.SphereGeometry(8, 18, 14), [0, 6, 0], [1.38, 1.0, 0.95]);
-      blobPart(this.bodyJ, new THREE.SphereGeometry(4.4, 14, 12), [5.5, 5.8, 0], [0.95, 0.85, 0.82]); // chest
-      blobPart(this.headJ, new THREE.SphereGeometry(4.8, 16, 12), [5.3, 2.1, 0], [1.12, 0.96, 0.93]);
-      blobPart(this.headJ, new THREE.SphereGeometry(2.9, 12, 10), [9.1, 1.2, 0], [1.2, 0.72, 0.82], accentMat); // dog muzzle
-      blobPart(this.tailJ, new THREE.SphereGeometry(2.6, 12, 10), [-3, 0.8, 0], [2.15, 0.66, 0.66]);
-      for (const k of LEGS) blobPart(this.legJ[k], new THREE.SphereGeometry(2.6, 10, 10), [0, -6.3, 0], [0.86, 1.95, 0.86]);
-      blobPart(this.earJ.el, new THREE.SphereGeometry(1.9, 10, 10), [0.1, 0.5, 0], [0.75, 1.48, 0.6]); // floppy dog ears
-      blobPart(this.earJ.er, new THREE.SphereGeometry(1.9, 10, 10), [0.1, 0.5, 0], [0.75, 1.48, 0.6]);
-      if (this.name === 'Bobby') blobPart(this.bodyJ, new THREE.SphereGeometry(3.9, 12, 10), [-0.5, 6.1, 0], [1.1, 0.78, 0.92], accentMat); // senior stockier back
-      if (this.name === 'Mali') blobPart(this.bodyJ, new THREE.SphereGeometry(3.5, 12, 10), [6.4, 5.8, 0], [0.9, 0.8, 0.84], accentMat); // gentle chest patch
-      if (this.name === 'Murphy') blobPart(this.headJ, new THREE.SphereGeometry(1.5, 10, 10), [8.7, 2.05, 0], [1.0, 0.8, 0.65], accentMat); // blaze
-    }
-    blobPart(this.headJ, new THREE.SphereGeometry(0.75, 10, 10), [9.9, 1.35, 0], [1.0, 0.75, 0.75], noseMat);
-    for (const k of LEGS) blobPart(this.legJ[k], new THREE.SphereGeometry(1.2, 8, 8), [0, -8.8, 0], [1.0, 0.55, 1.15], accentMat);
-    const eyeMat = new THREE.MeshLambertMaterial({ color: 0x201c1a });
-    applyBlobbyToonMaterial(eyeMat, { top: 0x3a332f, bottom: 0x130f0d, gloss: 0.5, rim: 0.04, ambient: 0.32 });
-    const eye = (x: number, z: number, sx = 1, sy = 1, sz = 1) => { const e = new THREE.Mesh(new THREE.SphereGeometry(0.8, 10, 10), eyeMat); e.position.set(x, 2.8, z); e.scale.set(sx, sy, sz); this.headJ.add(e); };
-    if (this.p.cat) { eye(7.3, 1.35, 0.9, 1.05, 0.7); eye(7.3, -1.35, 0.9, 1.05, 0.7); }
-    else { eye(7.8, 1.3); eye(7.8, -1.3); }
-    const syncRenderMode = (smooth: boolean) => {
-      this.voxelParts.forEach(m => m.visible = true);
-      this.mat.transparent = smooth;
-      this.mat.opacity = smooth ? 0.4 : 1;
-      this.mat.depthWrite = !smooth;
-      this.blobRoot.visible = smooth;
-      this.blobParts.forEach(m => m.visible = smooth);
-    };
-    syncRenderMode(isSmoothToonRenderer());
-    onSmoothToonRendererChange(syncRenderMode);
     this.elev = 0; this.elevT = 0; this.fakeV = 0; this.pos = V2(o.x, o.z); this.h = o.h; this.v = 0; this.rootY = 0.5 * K; this.slope = 0;
     this.cur = Object.assign({}, POSES.stand, { hy: 0, lookPitch: 0, tilt: 0 }); this.poseName = 'stand';
     this.phase = rr(0, 6); this.wagPh = rr(0, 6); this.stepW = 0; this.seed = rr(0, 100);
@@ -927,11 +859,6 @@ export class Dog {
     this.earLift = damp(this.earLift, liftT * (this.poseName === 'cower' ? 0.2 : 1) - (this.poseName === 'cower' ? 0.22 : 0) + fx.happy * 0.2 * Math.sin(t * 13), 10, dt); this.earSwing = damp(this.earSwing, swingT, 8, dt);
     this.earJ.el.rotation.set(-this.earLift, 0, this.earSwing);
     this.earJ.er.rotation.set(this.earLift, 0, this.earSwing);
-    if (this.blobRoot.visible) {
-      const squash = clamp(1 + (this.hop > 0 ? Math.sin(Math.PI * (1 - this.hop)) * 0.18 : 0) - Math.min(0.1, this.v / (140 * K) * 0.08), 0.84, 1.2);
-      const xz = 1 / Math.sqrt(squash);
-      this.blobRoot.scale.set(xz, squash, xz);
-    }
     this.root.updateMatrixWorld(true);
 
     if (sleeping && c.roll > 1.1) { this.zT -= dt; if (this.zT <= 0) { this.zT = 1.7; puff(zTex, this.headWorld(V3).add(new THREE.Vector3(0, 2, 0)), 3.2, 3.2, 3, 1.5); } }

@@ -4,8 +4,6 @@ import { DPR, camera, hemi, scene, sun } from '../render/stage';
 import { B, G, JETTY, LAKE, SPILL, WATER_Y, colAt, colXZ, idxOf } from './layout';
 import { UNIT, waterMat } from './mesh';
 import { dropTex, puff } from '../fx/sprites';
-import { applyBlobbyToonMaterial } from '../render/blobbyToonMaterial';
-import { attachEntityOutline, syncInstancedOutline } from '../render/entityOutline';
 
 // ================= the pond: a waterfall off the island edge, and lily pads =================
 const { rand, rr } = seeded(7310);
@@ -89,7 +87,6 @@ const GLSL_NOISE = `float h21(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1)
 // chunks of white water tumbling down through and around the column, voxel-style, for a broken, rough edge
 const CHUNKS = 340;
 const chunkMat = new THREE.MeshLambertMaterial({ transparent: true, opacity: 0.9, depthWrite: false });
-applyBlobbyToonMaterial(chunkMat, { top: 0xf6fbff, bottom: 0x84b8d4, gloss: 0.12, rim: 0.06, ambient: 0.55 });
 const chunkMesh = new THREE.InstancedMesh(UNIT, chunkMat, CHUNKS);
 chunkMesh.frustumCulled = false; chunkMesh.renderOrder = 2; scene.add(chunkMesh);
 const chunks: any[] = [];
@@ -188,9 +185,7 @@ export const nearestPadIdx = (x, z) => { let best = -1, bd = 1e9; for (const p o
 
 const PAD_PARTS = 4;   // two crossed slabs make an octagon, then a flower bud and its centre
 const padMat = new THREE.MeshLambertMaterial();
-applyBlobbyToonMaterial(padMat, { top: 0xb8d58a, bottom: 0x5f8e46, gloss: 0.18, rim: 0.09, ambient: 0.45 });
 const padMesh = new THREE.InstancedMesh(UNIT, padMat, PADS.length * PAD_PARTS);
-const padOutline = attachEntityOutline(padMesh, 0.038) as THREE.InstancedMesh;
 padMesh.receiveShadow = true; padMesh.frustumCulled = false; scene.add(padMesh);
 const _o = new THREE.Object3D(), _c = new THREE.Color(), _v = new THREE.Vector3();
 PADS.forEach((p, i) => {
@@ -223,7 +218,6 @@ export function updatePond(dt, t) {
     }
   }
   padMesh.instanceMatrix.needsUpdate = true;
-  syncInstancedOutline(padMesh, padOutline);
   // spray off the lip when someone is close enough to see it
   if (!reduceMotion && rand() < dt * 5 && camera.position.distanceTo(_v.set(SPILL.x, SPILL.y, SPILL.z)) < 420) {
     const s = rr(-0.5, 0.5) * SPILL.w;
