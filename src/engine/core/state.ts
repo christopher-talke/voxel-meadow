@@ -36,4 +36,6 @@ export const state = {
   autoT: 0,
   /** Fade of the tap ring (1 to 0). */
   ringT: 0,
+  /** Test hook: hold the camera where a still put it. */
+  freezeCam: false,
 };

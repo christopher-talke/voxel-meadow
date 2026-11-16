@@ -10,7 +10,7 @@ async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch(executable_path=CHROME, args=['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'])
         ctx = await b.new_context(viewport={'width': 1280, 'height': 720}, timezone_id='Australia/Sydney')
-        await ctx.add_init_script('window.__MEADOW_PAUSE = true')
+        await ctx.add_init_script('window.__SIM_PAUSE = true')
         pg = await ctx.new_page(); errs = []
         pg.on('pageerror', lambda e: errs.append(str(e)))
         await pg.route('**/*', lambda r: r.abort() if 'fonts.g' in r.request.url else r.continue_())

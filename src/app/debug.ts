@@ -24,6 +24,7 @@ import { FROGS } from '../entities/frogs';
 import { SPILL } from '../world/layout';
 
 window.MEADOW = { renderer, adapt: adaptState, fallMesh, mistPts, PADS, PAD_CHAIN, FROGS, SPILL, lilyHop(i = 3, fall = false) { const c = ents[i]; c.forceSlip = !!fall; c.interrupt(c.B('lilyhop'), 'lilyhop'); }, ORBIT, WHISTLE, fitOrbit, SND, SFX, moonDisc, WX, setTod, timeText, get simMs() { return state.simMs; }, set simMs(v) { state.simMs = v; }, get timeMode() { return state.timeMode; }, set timeMode(v) { state.timeMode = v; }, env, cineStart, SHOTS, cineStep: dt => cineUpdate(dt), cine, get camMode() { return state.camMode; }, setCamMode, FISH, cats, fishStand, pickFish, hideSpot, TREES, goTo, findPath, G, idxOf, cols, cell: (x, z) => { const i = Math.round(x / B), j = Math.round(z / B), c = colAt(i, j); return c ? [c.type, c.top, G.walk[idxOf(i, j)], !!c.forest] : null; }, dbg: () => ({ cam: state.camMode, drag: drag && { moved: drag.moved, done: drag.done, k: drag.k }, down: !!down, ctl: controls.enabled, anim: CLOTHS.map(c => !!c.anim) }), pick: (x, y) => { pointerRay({ clientX: x, clientY: y }); const t = pickThing(); return t ? t.kind : null; }, dogs, SB, ballGame, CLOTHS, BEDS, POSES, S, camera, controls, callThem, playtime, napTime, focus,
+  get freezeCam() { return state.freezeCam; }, set freezeCam(v) { state.freezeCam = !!v; },
   setCam(m) { state.camMode = m; }, get cam() { return state.camMode; }, autoStep: autoCamUpdate, get cp() { return camera.position.toArray(); }, freeT,
   advance(sec) { for (let i = 0; i < sec * 60; i++) { state.T += 1 / 60; stepWorld(1 / 60); } focus.copy(focusGoal()); controls.target.copy(focus); } };
 
@@ -40,7 +41,7 @@ function fnv(): { add(v: number | string): void; hex(): string } {
 Object.assign(window.MEADOW, {
   LOOK,
   /** Place the camera for a still: freezes the follow logic so the view stays put. */
-  view(cx: number, cy: number, cz: number, tx: number, ty: number, tz: number, fogPush = 0) { state.fogPush = fogPush; window.MEADOW.freezeCam = true; state.camMode = "free"; controls.autoRotate = false; camera.position.set(cx, cy, cz); controls.target.set(tx, ty, tz); focus.copy(controls.target); freeT.copy(focus); controls.update(); updateEnv(0, focus); },
+  view(cx: number, cy: number, cz: number, tx: number, ty: number, tz: number, fogPush = 0) { state.fogPush = fogPush; state.freezeCam = true; state.camMode = "free"; controls.autoRotate = false; camera.position.set(cx, cy, cz); controls.target.set(tx, ty, tz); focus.copy(controls.target); freeT.copy(focus); controls.update(); updateEnv(0, focus); },
   /** Per-system hashes of generated world state. A pure refactor must leave every one unchanged. */
   fingerprint() {
     const out: Record<string, string> = {};

@@ -41,7 +41,7 @@ PARK = """(() => { const c = MEADOW.cats[1]; c.pos.set(236, -60); c.goal = null;
 async def page(p, pause=True):
     b = await p.chromium.launch(executable_path=CHROME, args=['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'])
     ctx = await b.new_context(viewport={'width': W, 'height': H}, timezone_id='Australia/Sydney')
-    if pause: await ctx.add_init_script('window.__MEADOW_PAUSE = true')
+    if pause: await ctx.add_init_script('window.__SIM_PAUSE = true')
     pg = await ctx.new_page(); errs = []
     pg.on('pageerror', lambda e: errs.append(str(e)))
     await pg.route('**/*', lambda r: r.abort() if 'fonts.g' in r.request.url else r.continue_())
