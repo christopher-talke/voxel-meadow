@@ -29,4 +29,5 @@ async def main():
         print('after reload mess',await pg.evaluate("MEADOW.CLOTHS.map(c=>c.mess().toFixed(2))"))
         print('errors',errs)
         await b.close()
+        if errs: raise SystemExit(1)
 asyncio.run(main())
