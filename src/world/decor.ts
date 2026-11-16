@@ -1,5 +1,7 @@
-import { hash, jit, lineDist, noise, rand, rr } from '../core/util';
-import { B, BEDS, CLIMB, CREEK, FIELD, G, HILL, JETTY, LAKE, PATHS, POLE, SHELTER_POSTS, WOODS, blanketToWorld, block, blockRect, colAt, cols, idxOf, inGrid, isWaterCol, onBed, onBlanket, onShelter } from './layout';
+import { hash, jit, lineDist, noise, rand, rr } from '../engine/core/util';
+import { BEDS, CLIMB, CREEK, FIELD, HILL, JETTY, LAKE, PATHS, POLE, SHELTER_POSTS, WOODS, blanketToWorld, onBed, onBlanket, onShelter } from './layout';
+import { G, block, blockRect, colAt, cols, idxOf, inGrid, isWaterCol } from '../engine/terrain/grid';
+import { B } from '../engine/core/scale';
 
 // ================= decor voxels (block grid) and small boxes =================
 export const DK = (i, k, j) => ((i + 600) * 2048 + (k + 600)) * 2048 + (j + 600);

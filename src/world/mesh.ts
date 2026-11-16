@@ -1,7 +1,9 @@
 import * as THREE from 'three';
-import { clamp, jit, mixHex, noise, rand, rr } from '../core/util';
-import { DPR, scene } from '../render/stage';
-import { B, BEDS, DECK, FIELD, POLE, SH, SHELTER_POSTS, colAt, colXZ, cols, isWaterCol } from './layout';
+import { clamp, jit, mixHex, noise, rand, rr } from '../engine/core/util';
+import { DPR, scene } from '../engine/render/stage';
+import { BEDS, DECK, FIELD, POLE, SH, SHELTER_POSTS } from './layout';
+import { colAt, colXZ, cols, isWaterCol } from '../engine/terrain/grid';
+import { B } from '../engine/core/scale';
 import { BALL, BALL_R, CHERRY, DK, ballBoxes, boxes, decor } from './decor';
 
 // ================= meshing =================

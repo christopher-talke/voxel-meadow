@@ -1,7 +1,8 @@
 import * as THREE from 'three';
-import { state } from '../core/state';
-import { scene } from '../render/stage';
-import { B, block } from './layout';
+import { state } from '../engine/core/state';
+import { scene } from '../engine/render/stage';
+import { block } from '../engine/terrain/grid';
+import { B } from '../engine/core/scale';
 import { UNIT, groundTop } from './mesh';
 import { WX } from '../sim/sky';
 

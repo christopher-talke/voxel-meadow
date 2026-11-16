@@ -1,7 +1,7 @@
-import { hooks } from '../core/hooks';
-import { state, type TimeMode } from '../core/state';
-import { $, V3, clamp, rr, store } from '../core/util';
-import { camera, stage } from '../render/stage';
+import { hooks } from '../engine/core/hooks';
+import { state, type TimeMode } from '../engine/core/state';
+import { $, V3, clamp, rr, store } from '../engine/core/util';
+import { camera, stage } from '../engine/render/stage';
 import { WX } from '../sim/sky';
 import { ents } from '../entities/registry';
 import { hideHint } from './hint';

@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { state, TIME_RATE } from "../core/state";
+import { state, TIME_RATE } from "../engine/core/state";
 import {
   clamp,
   lerp,
@@ -9,12 +9,13 @@ import {
   seeded,
   smooth,
   store,
-} from "../core/util";
-import { camera, fog, hemi, scene, skyU, starU, sun } from "../render/stage";
-import { SH, WATER_Y, colXZ, roofTop } from "../world/layout";
+} from "../engine/core/util";
+import { camera, fog, hemi, scene, skyU, starU, sun } from "../engine/render/stage";
+import { SH, WATER_Y, roofTop } from "../world/layout";
+import { colXZ } from "../engine/terrain/grid";
 import { cloudMat, clouds, fireU, groundTop, vcMat, waterMat } from "../world/mesh";
 import { dogs } from "../entities/registry";
-import { hooks } from "../core/hooks";
+import { hooks } from "../engine/core/hooks";
 
 // ================= time, sun, moon and weather =================
 // palettes keyed by sun elevation in degrees; everything in between is blended

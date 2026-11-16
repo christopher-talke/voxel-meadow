@@ -1,13 +1,15 @@
 import * as THREE from 'three';
-import { clamp, headingTo, lerp, seeded, smooth, wrapA } from '../core/util';
-import { scene } from '../render/stage';
-import { B, G, LAKE, WATER_Y, colAt, colXZ, cols, idxOf, isWaterCol } from '../world/layout';
+import { clamp, headingTo, lerp, seeded, smooth, wrapA } from '../engine/core/util';
+import { scene } from '../engine/render/stage';
+import { LAKE, WATER_Y } from '../world/layout';
+import { G, colAt, colXZ, cols, idxOf, isWaterCol } from '../engine/terrain/grid';
+import { B } from '../engine/core/scale';
 import { UNIT } from '../world/mesh';
 import { PADS, padY, type Pad } from '../world/pond';
 import { env } from '../sim/sky';
 import { ents } from './registry';
 import { SFX, SND } from '../audio/sound';
-import { dropTex, puff } from '../fx/sprites';
+import { dropTex, puff } from '../engine/fx/sprites';
 
 // ================= frogs: they sit on the lily pads and the banks, croak at dusk and plop away from cats =================
 const { rand, rr } = seeded(5150);

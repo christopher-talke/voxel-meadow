@@ -1,5 +1,6 @@
 import { V2, headingTo, rand, rr } from '../core/util';
-import { B, G, N, R, cellIdx, colAt, cols, idxOf, inGrid, isWaterCol } from '../world/layout';
+import { G, N, R, cellIdx, colAt, cols, idxOf, inGrid, isWaterCol } from '../terrain/grid';
+import { B } from '../core/scale';
 
 // ================= pathfinding =================
 
@@ -8,7 +9,7 @@ const walkXZ = (x, z) => { const c = cellIdx(x, z); return c >= 0 && G.walk[c] =
 export const cellPt = c => V2((Math.floor(c / N) - R) * B, (c % N - R) * B);
 export function nearestWalk(x, z, land = false, maxR = 14) {
   const i0 = Math.round(x / B), j0 = Math.round(z / B);
-  const ok = (i, j) => { if (!inGrid(i, j)) return false; const k = idxOf(i, j); if (!G.walk[k]) return false; if (land) { const c = cols[k]!; if (c.type === 'shallow' || c.jetty || c.bridge) return false; } return true; };
+  const ok = (i, j) => { if (!inGrid(i, j)) return false; const k = idxOf(i, j); if (!G.walk[k]) return false; if (land) { const c = cols[k]!; if (c.wade || c.jetty || c.bridge) return false; } return true; };
   for (let r = 0; r <= maxR; r++) {
     let best = -1, bd = 1e9;
     for (let i = i0 - r; i <= i0 + r; i++) for (let j = j0 - r; j <= j0 + r; j++) {
@@ -96,7 +97,7 @@ export function bankNear(x, z, avoid?) {
   const q = [s], vis = new Set([s]);
   while (q.length && vis.size < 6000) {
     const c = q.shift()!, ci = Math.floor(c / N) - R, cj = c % N - R, col = cols[c]!;
-    if (col.type !== 'shallow' && !col.jetty && !col.bridge) {
+    if (!col.wade && !col.jetty && !col.bridge) {
       for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
         const n = colAt(ci + di, cj + dj);
         if (n && isWaterCol(n) && !n.bridge && !n.jetty && (!avoid || Math.hypot(ci * B - avoid.x, cj * B - avoid.y) > 18)) return { p: V2(ci * B - di * 3, cj * B - dj * 3), h: headingTo(di, dj) };
@@ -114,11 +115,9 @@ export function randLand(cx, cz, minD, maxD) {
     const a = rand() * 6.283, d = rr(minD, maxD), x = cx + Math.cos(a) * d, z = cz + Math.sin(a) * d, c = cellIdx(x, z);
     if (c < 0 || !G.walk[c]) continue;
     const col = cols[c]!;
-    if (col.type === 'shallow' || col.jetty || col.bridge) continue;
+    if (col.wade || col.jetty || col.bridge) continue;
     if (!walkXZ(x + 6, z) || !walkXZ(x - 6, z) || !walkXZ(x, z + 6) || !walkXZ(x, z - 6)) continue;
     return V2(x, z);
   }
   const c = nearestWalk(cx, cz, true); return c >= 0 ? cellPt(c) : V2(0, 20);
 }
-export const SHALLOWS: any[] = [];
-for (const c of cols) if (c && c.type === 'shallow' && !c.jetty) { let near = false; for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) { const n = colAt(c.i + a, c.j + b); if (n && n.type === 'sand') near = true; } if (near) SHALLOWS.push(c); }

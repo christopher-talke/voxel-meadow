@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { seeded } from '../core/util';
-import { scene } from '../render/stage';
+import { seeded } from '../engine/core/util';
+import { scene } from '../engine/render/stage';
 
 // ================= decision mocks: what lies beyond the island =================
 // Debug only, built on first use and never shown unless a test asks. Two coherent answers, cheap enough to look at side by side:

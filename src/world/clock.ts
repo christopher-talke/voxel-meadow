@@ -1,7 +1,8 @@
 import * as THREE from 'three';
-import { smooth } from '../core/util';
-import { scene } from '../render/stage';
-import { B, block } from './layout';
+import { smooth } from '../engine/core/util';
+import { scene } from '../engine/render/stage';
+import { block } from '../engine/terrain/grid';
+import { B } from '../engine/core/scale';
 import { UNIT, groundTop } from './mesh';
 import { WX, env, simDate } from '../sim/sky';
 

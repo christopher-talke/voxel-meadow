@@ -1,13 +1,16 @@
 import type { Dog } from './dog';
 import * as THREE from 'three';
-import { state } from '../core/state';
-import { V2, V3, clamp, headingTo, lerp, rand, rr, smooth, wrapA } from '../core/util';
-import { scene } from '../render/stage';
-import { B, FIELD, G, JETTY, K, WATER_Y, WOODS, bedTop, cellIdx, colAt, colXZ, deckH, gyAt, idxOf, roofTop } from '../world/layout';
+import { state } from '../engine/core/state';
+import { V2, V3, clamp, headingTo, lerp, rand, rr, smooth, wrapA } from '../engine/core/util';
+import { scene } from '../engine/render/stage';
+import { FIELD, JETTY, WATER_Y, WOODS, bedTop, deckH, roofTop } from '../world/layout';
+import { G, cellIdx, colAt, colXZ, gyAt, idxOf } from '../engine/terrain/grid';
+import { B, K } from '../engine/core/scale';
 import { LOOK, TREES } from '../world/decor';
 import { todKey } from '../sim/sky';
-import { dropTex, puff } from '../fx/sprites';
-import { SHALLOWS, bankNear, cellPt, nearestWalk, randLand } from '../nav/path';
+import { dropTex, puff } from '../engine/fx/sprites';
+import { bankNear, cellPt, nearestWalk, randLand } from '../engine/nav/path';
+import { SHALLOWS } from '../world/layout';
 import { PAD_CHAIN, PAD_END, PAD_START, padY, type Pad } from '../world/pond';
 import { WX } from '../sim/sky';
 

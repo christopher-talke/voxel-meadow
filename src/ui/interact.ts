@@ -1,9 +1,11 @@
 import type { Dog } from '../entities/dog';
 import * as THREE from 'three';
-import { state } from '../core/state';
-import { V2, V3, rand, rr, store } from '../core/util';
-import { camera, controls, renderer, scene, stage } from '../render/stage';
-import { B, BEDS, FIELD, JETTY, LAKE, colXZ, isWaterCol } from '../world/layout';
+import { state } from '../engine/core/state';
+import { V2, V3, rand, rr, store } from '../engine/core/util';
+import { camera, controls, renderer, scene, stage } from '../engine/render/stage';
+import { BEDS, FIELD, JETTY, LAKE } from '../world/layout';
+import { colXZ, isWaterCol } from '../engine/terrain/grid';
+import { B } from '../engine/core/scale';
 import { LOOK } from '../world/decor';
 import { ballMesh, bedMesh, groundTop } from '../world/mesh';
 import { cats, dogs, ents } from '../entities/registry';

@@ -1,11 +1,12 @@
 import * as THREE from 'three';
-import { $, V3, clamp, rand, rr, smooth, store } from '../core/util';
-import { camera, focus } from '../render/stage';
-import { B, LAKE, SPILL } from '../world/layout';
+import { $, V3, clamp, rand, rr, smooth, store } from '../engine/core/util';
+import { camera, focus } from '../engine/render/stage';
+import { LAKE, SPILL } from '../world/layout';
+import { B } from '../engine/core/scale';
 import { WX, env, underRoof } from '../sim/sky';
 import { ents } from '../entities/registry';
 import { showHint } from '../ui/hint';
-import { hooks } from '../core/hooks';
+import { hooks } from '../engine/core/hooks';
 
 // ================= sound: synthesised ambience and placeholder animal voices (no files needed) =================
 /** The synth's shared state. The audio graph is built lazily on the first unmute (sndInit), so ctx and the buses are unset until then. */

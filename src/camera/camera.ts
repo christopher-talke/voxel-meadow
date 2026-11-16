@@ -1,15 +1,16 @@
 import type { Dog } from "../entities/dog";
 import * as THREE from "three";
-import { state } from "../core/state";
-import { $, clamp, lerp, rand, store } from "../core/util";
-import { COARSE, camera, controls, focus } from "../render/stage";
-import { K, SH, roofTop } from "../world/layout";
+import { state } from "../engine/core/state";
+import { $, clamp, lerp, rand, store } from "../engine/core/util";
+import { COARSE, camera, controls, focus } from "../engine/render/stage";
+import { SH, roofTop } from "../world/layout";
+import { K } from "../engine/core/scale";
 import { CHERRY, TREES } from "../world/decor";
 import { groundTop } from "../world/mesh";
 import { WX, env } from "../sim/sky";
 import { cats, dogs, ents } from "../entities/registry";
 import { showHint } from "../ui/hint";
-import { hooks } from "../core/hooks";
+import { hooks } from "../engine/core/hooks";
 const WALLPAPER_BUILD = import.meta.env.PROD;
 
 // ================= camera follow =================

@@ -1,8 +1,9 @@
 import * as THREE from 'three';
-import { state } from '../core/state';
-import { V2, clamp, lerp, rand, store } from '../core/util';
-import { scene } from '../render/stage';
-import { BEDS, BL, GRAV, K, NOSE } from '../world/layout';
+import { state } from '../engine/core/state';
+import { V2, clamp, lerp, rand, store } from '../engine/core/util';
+import { scene } from '../engine/render/stage';
+import { BEDS, BL, NOSE } from '../world/layout';
+import { GRAV, K } from '../engine/core/scale';
 import { dogs, ents } from './registry';
 import { groundAtXZ } from './behaviours';
 

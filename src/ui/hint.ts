@@ -1,4 +1,4 @@
-import { $ } from '../core/util';
+import { $ } from '../engine/core/util';
 const hintEl = $('hint');
 let hintGone = false;
 export const hideHint = () => { if (!hintGone) { hintGone = true; hintEl.classList.add('gone'); } };

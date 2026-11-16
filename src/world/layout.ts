@@ -1,8 +1,8 @@
-import { clamp, lineDist, noise, smooth } from '../core/util';
+import { clamp, lineDist, noise, smooth } from '../engine/core/util';
+import { B } from '../engine/core/scale';
+import { type Col, G, R, cellIdx, colAt, cols, idxOf, initGrid } from '../engine/terrain/grid';
 
-// ================= world layout (block units, 1 block = 4 dog voxels) =================
-export const B = 4, R = 90, N = 2 * R + 1;
-export const K = 0.48;   // dog voxel size in world units: a dog is ~22 long and ~12 to the shoulder
+// ================= the island layout (block units; scale lives in engine/core/scale.ts) =================
 export const LAKE = { i: 45, j: 40, r: 22 };
 // the lake spills out through a short channel on its far side and pours off the island edge
 const SPILL_U = (() => { const l = Math.hypot(LAKE.i, LAKE.j); return { x: LAKE.i / l, z: LAKE.j / l }; })();
@@ -31,7 +31,6 @@ export const BEDS = [
 ];
 // an open timber shelter (posts and roof only) in an L around the picnic blanket
 export const SH = { x0: -99, x1: -55, z0: -47, z1: 49, hBack: 36, hFront: 27 };   // one straight open shelter holding all three beds
-export const gyAt = (x, z) => { const c = cellIdx(x, z); return c >= 0 ? G.gy[c] : 0; };
 export const roofTop = x => (x < SH.x1 + 8 ? SH.hBack + (SH.hFront - SH.hBack) * ((Math.min(x, SH.x1) - SH.x0) / (SH.x1 - SH.x0)) : SH.hFront - 1.6) + 2.9;
 export const POLE = { x: -77, z: -54.5, h: 33.5 };   // a timber pole against the roof edge that the cats use to get up
 export const CLIMB: any[] = [];                              // oaks the cats can climb: grip point and a branch stub to sit on
@@ -51,8 +50,6 @@ export function bedTop(x, z) {   // height above the deck
 export const onBed = (x, z, m = 0) => BEDS.some(bd => { const l = bedLocal(bd, x, z); return Math.hypot(l.x / (bd.a + m), l.z / (bd.b + m)) < 1; });
 export function onBlanket(x, z, m = 0) { const l = blanketLocal(x, z); return Math.abs(l.x) < BL.w / 2 + m && Math.abs(l.z) < BL.d / 2 + m; }
 
-export const idxOf = (i, j) => (i + R) * N + (j + R);
-export const inGrid = (i, j) => i >= -R && i <= R && j >= -R && j <= R;
 const edgeR = a => R - 6 + 4 * noise(Math.cos(a) * 1.6 + 7, Math.sin(a) * 1.6 + 7, 3) + 2 * noise(Math.cos(a) * 4 + 2, Math.sin(a) * 4 + 2, 4);
 function Hf(i, j) {
   const d = Math.hypot(i, j), north = clamp(-j / (d + 1e-3), 0, 1);
@@ -64,18 +61,7 @@ function Hf(i, j) {
   return h * smooth(14, 32, d);
 }
 
-/** One terrain column of the island grid. */
-export interface Col {
-  i: number; j: number;
-  /** Height of the top block, in block units; base is where the grass starts, bot the underside. */
-  top: number; base: number; bot: number;
-  type: string;
-  /** Water surface height in world units, or null for dry land. */
-  wl: number | null;
-  bridge: boolean; jetty: boolean; forest: boolean; edge: boolean;
-  [extra: string]: any;
-}
-export const cols: (Col | null)[] = new Array(N * N).fill(null);
+initGrid(90);   // the island: 181 x 181 blocks, about 23 m across
 for (let i = -R; i <= R; i++) for (let j = -R; j <= R; j++) {
   const d = Math.hypot(i, j), re = edgeR(Math.atan2(j, i));
   if (d > re) continue;
@@ -94,9 +80,9 @@ for (let i = -R; i <= R; i++) for (let j = -R; j <= R; j++) {
   if (i >= JETTY.i0 && i <= JETTY.i1 && j >= JETTY.j0 && j <= JETTY.j1 && (c.type === 'sand' || c.type === 'shallow' || c.type === 'deep')) c.jetty = true;
   if (Math.hypot(i - WOODS.i, j - WOODS.j) < WOODS.r + 4 * (noise(i * 0.1, j * 0.1, 9) - 0.5) && c.type === 'grass') c.forest = true;
   c.bot = -(3 + Math.floor((1 - Math.pow(d / re, 1.4)) * 32 + noise(i * 0.08, j * 0.08, 8) * 6));
+  c.wade = c.type === 'shallow'; c.swim = c.type === 'deep';
   cols[idxOf(i, j)] = c;
 }
-export const colAt = (i, j) => inGrid(i, j) ? cols[idxOf(i, j)] : null;
 /** Where the lake pours off the island: lip point on the water (world units), outward direction, channel width. */
 export const SPILL = (() => {
   let tMax = 0;
@@ -104,11 +90,8 @@ export const SPILL = (() => {
   const t = tMax + 0.5;
   return { x: (LAKE.i + SPILL_U.x * t) * B, z: (LAKE.j + SPILL_U.z * t) * B, nx: SPILL_U.x, nz: SPILL_U.z, w: SPILL_HW * 2 * B, y: -1 };
 })();
-export const colXZ = (x, z) => colAt(Math.round(x / B), Math.round(z / B));
-export const isWaterCol = c => c && (c.type === 'shallow' || c.type === 'deep' || c.type === 'creek');
 
 // walk grid
-export const G = { walk: new Uint8Array(N * N), lvl: new Int8Array(N * N), gy: new Float32Array(N * N), cost: new Float32Array(N * N) };
 for (const c of cols) {
   if (!c) continue;
   const k = idxOf(c.i, c.j);
@@ -120,13 +103,12 @@ for (const c of cols) {
   if (c.edge) w = 0;
   G.walk[k] = w; G.lvl[k] = lvl; G.gy[k] = gy; G.cost[k] = cost;
 }
-export function blockRect(x0, x1, z0, z1) { for (let i = Math.floor(x0 / B); i <= Math.ceil(x1 / B); i++) for (let j = Math.floor(z0 / B); j <= Math.ceil(z1 / B); j++) if (inGrid(i, j)) G.walk[idxOf(i, j)] = 0; }
-export function block(i0, j0, r) { for (let i = Math.floor(i0 - r); i <= Math.ceil(i0 + r); i++) for (let j = Math.floor(j0 - r); j <= Math.ceil(j0 + r); j++) if (inGrid(i, j) && Math.hypot(i - i0, j - j0) <= r) G.walk[idxOf(i, j)] = 0; }
 
-export const cellIdx = (x, z) => { const i = Math.round(x / B), j = Math.round(z / B); return inGrid(i, j) ? idxOf(i, j) : -1; };
 
 export const WATER_Y = -1;
 
 export const NOSE = 11.4;
 
-export const GRAV = 300;                     // ~9.8 m/s^2 in world units (1 unit is about 3.2 cm)
+// beach entry points: shallow water cells with sand close by, where the dogs wade in and the fish gather
+export const SHALLOWS: any[] = [];
+for (const c of cols) if (c && c.type === 'shallow' && !c.jetty) { let near = false; for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) { const n = colAt(c.i + a, c.j + b); if (n && n.type === 'sand') near = true; } if (near) SHALLOWS.push(c); }
