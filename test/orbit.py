@@ -1,4 +1,4 @@
-from common import DIST, THREE_DIR
+from common import DIST, THREE_DIR, CHROME
 import asyncio, sys
 from playwright.async_api import async_playwright
 NM=THREE_DIR
@@ -7,7 +7,7 @@ MAP={'three.min.js':NM+'build/three.min.js','OrbitControls.js':NM+'examples/js/c
 async def main():
     W,H=int(sys.argv[1]),int(sys.argv[2]); ang=float(sys.argv[4]) if len(sys.argv)>4 else 0.3
     async with async_playwright() as p:
-        b=await p.chromium.launch(executable_path='/usr/bin/google-chrome',args=['--use-gl=swiftshader','--enable-unsafe-swiftshader'])
+        b=await p.chromium.launch(executable_path=CHROME,args=['--use-gl=swiftshader','--enable-unsafe-swiftshader'])
         pg=await b.new_page(viewport={'width':W,'height':H})
         errs=[]; pg.on('pageerror',lambda e:errs.append(str(e)))
         async def route(r):

@@ -1,11 +1,11 @@
-from common import DIST, THREE_DIR
+from common import DIST, THREE_DIR, CHROME
 import asyncio
 from playwright.async_api import async_playwright
 NM=THREE_DIR
 MAP={'three.min.js':NM+'build/three.min.js','OrbitControls.js':NM+'examples/js/controls/OrbitControls.js'}
 async def main():
     async with async_playwright() as p:
-        b=await p.chromium.launch(executable_path='/usr/bin/google-chrome',args=['--use-gl=swiftshader','--enable-unsafe-swiftshader'])
+        b=await p.chromium.launch(executable_path=CHROME,args=['--use-gl=swiftshader','--enable-unsafe-swiftshader'])
         pg=await b.new_page()
         async def route(r):
             for k,v in MAP.items():

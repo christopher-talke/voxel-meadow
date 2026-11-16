@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "python3 test/soak.py"
+    "test": "sh -c 'P=python3; [ -x .venv/bin/python ] && P=.venv/bin/python; $P test/soak.py'"
   },
   "devDependencies": {
     "@types/three": "0.128.0",
