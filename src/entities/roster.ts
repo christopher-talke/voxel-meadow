@@ -1,3 +1,4 @@
+import { crowd } from '../engine/animal/animal';
 import RIG from '../../assets/rig.json';
 import { cats, dogs, ents } from './registry';
 import { PERSONA } from './behaviours';
@@ -15,6 +16,7 @@ cats.push(
 cats[0].other = cats[1]; cats[1].other = cats[0];
 cats[0].setQueue(cats[0].B('sit'), 'sit'); cats[1].setQueue(cats[1].B('sunbathe'), 'sunbathe');
 ents.push(...dogs, ...cats);
+crowd.push(...dogs);   // everyone steers round the dogs while walking
 dogs[0].other = dogs[1]; dogs[1].other = dogs[0]; dogs[2].other = dogs[1];
 dogs[0].setQueue(dogs[0].B('wander'), 'wander');
 dogs[1].setQueue(dogs[1].B('sniff'), 'sniff');

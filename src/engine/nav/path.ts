@@ -20,7 +20,9 @@ export function nearestWalk(x, z, land = false, maxR = 14) {
   }
   return -1;
 }
-const gS = new Float32Array(N * N), par = new Int32Array(N * N), seen = new Uint32Array(N * N), closed = new Uint32Array(N * N);
+// search scratch, sized to the grid on first use (the grid is sized by the content after this module loads)
+let gS = new Float32Array(0), par = new Int32Array(0), seen = new Uint32Array(0), closed = new Uint32Array(0);
+const fitScratch = () => { if (gS.length !== N * N) { gS = new Float32Array(N * N); par = new Int32Array(N * N); seen = new Uint32Array(N * N); closed = new Uint32Array(N * N); } };
 let stampN = 0, hI = new Int32Array(1 << 16), hF = new Float32Array(1 << 16), hn = 0;
 function hswap(a, b) { const ti = hI[a]; hI[a] = hI[b]; hI[b] = ti; const tf = hF[a]; hF[a] = hF[b]; hF[b] = tf; }
 function hpush(i, f) {
@@ -55,6 +57,7 @@ export function findPath(sx, sz, tx, tz) {
   if (s < 0 || t < 0) return null;
   const tWalk = cellIdx(tx, tz) === t;
   if (s === t) return [tWalk ? V2(tx, tz) : cellPt(t)];
+  fitScratch();
   stampN++; hn = 0; gS[s] = 0; seen[s] = stampN; par[s] = -1;
   const ti = Math.floor(t / N), tj = t % N;
   const heur = c => { const dx = Math.abs(Math.floor(c / N) - ti), dy = Math.abs(c % N - tj); return 0.55 * (dx + dy - 0.586 * Math.min(dx, dy)); };

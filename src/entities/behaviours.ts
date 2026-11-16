@@ -1,5 +1,6 @@
 import type { Dog } from './dog';
 import * as THREE from 'three';
+import { BASE_POSE, PKEYS, SPEED, type Step, type StepOpts, animalMat, animalMeshes, steps } from '../engine/animal/animal';
 import { state } from '../engine/core/state';
 import { V2, V3, clamp, headingTo, lerp, rand, rr, smooth, wrapA } from '../engine/core/util';
 import { scene } from '../engine/render/stage';
@@ -15,7 +16,6 @@ import { PAD_CHAIN, PAD_END, PAD_START, padY, type Pad } from '../world/pond';
 import { WX } from '../engine/sky/sky';
 
 // ================= dogs =================
-const BASE = { lift: 0, pitch: 0, roll: 0, hp: 0, hr: 0, hyb: 0, nkx: 0, nky: 0, tr: 0, tc: 0, fl: 0, fr: 0, bl: 0, br: 0, wag: 0.22, wagSpd: 6, rate: 5 };
 export const POSES = {
   stand: {},
   // Murphy lies curled, head resting over his front legs; Mali lies flat with her head down between her paws
@@ -46,8 +46,7 @@ export const POSES = {
   shake: { rate: 8, wag: 0.4, wagSpd: 14 },
   cower: { lift: -3, pitch: -0.12, hp: -0.12, tr: 0.85, wag: 0.04, wagSpd: 3, fl: 0.15, fr: 0.15, rate: 10 },
 };
-for (const k in POSES) POSES[k] = Object.assign({}, BASE, POSES[k]);
-export const PKEYS = ['lift', 'pitch', 'roll', 'hp', 'hr', 'hyb', 'nkx', 'nky', 'tr', 'tc', 'fl', 'fr', 'bl', 'br', 'wag', 'wagSpd'];
+for (const k in POSES) POSES[k] = Object.assign({}, BASE_POSE, POSES[k]);
 // who they were: Murphy energetic, sweet and nervous; Mali gentle, slow, with energy in bursts
 export const PERSONA: Record<string, any> = {
   murphy: { swimP: 0.55, speed: { walk: 1.2, sniffwalk: 1.25, trot: 1.15, run: 1.05, wade: 0.75 }, stride: 0.8, bounce: 1.5, turn: 1.3, poseRate: 1.35,
@@ -70,9 +69,7 @@ const CATP = Object.assign({}, PERSONA.bobby, {
   w: { wander: 1.6, sniff: 2, sit: 3, sunbathe: 3.5, zoomies: 0, visit: 0.4, adventure: 0, hello: 0, nap: 3, ball: 0, tummy: 0, rub: 0, grump: 0, climb: 1.6, perch: 1.6, fish: 1.3, ambush: 2.2, lily: 2.2 },
   labels: { wander: 'Prowling about', sniff: 'Investigating something', sit: 'Sitting like a statue', sun: 'Sunning themselves' } });
 PERSONA.cat1 = Object.assign({}, CATP, { swish: 0.55 }); PERSONA.cat2 = Object.assign({}, CATP, { swish: 1.15, labels: { wander: 'Strolling about', sniff: 'Investigating something', sit: 'Sitting like a statue', sun: 'Sunning themselves' } });
-export const SPEED = { dribble: 215 * K, crawl: 9 * K, walk: 30 * K, sniffwalk: 13 * K, trot: 50 * K, run: 105 * K, wade: 16 * K };
-export const dogMat = new THREE.MeshLambertMaterial();
-export const dogMeshes: THREE.InstancedMesh[] = [];
+export { animalMat as dogMat, animalMeshes as dogMeshes, PKEYS, SPEED };
 
 
 
@@ -162,23 +159,9 @@ export function pileSlot(d) {
   return { pt: q, h: headingTo(PILE.x - q.x, PILE.z - q.y) + rr(-0.6, 0.6) + (d.p.cat ? 0 : Math.PI / 2) };
 }
 export const isNight = () => todKey === 'night';
-export type StepOpts = Record<string, any>;
-/** One beat of a behaviour: it starts on a dog, then updates each frame until it returns true. Steps keep their own scratch fields (t, tgt, stage ...). */
-export interface Step {
-  text?: string;
-  start(d: Dog): void;
-  update(d: Dog, dt: number): boolean | void;
-  [scratch: string]: any;
-}
-
+export type { Step, StepOpts };
 export const S = {
-  go: (pt, gait, o: StepOpts = {}): Step => ({ text: o.text, start(d) { d.goal = { pt, arrive: o.arrive || 4, ignoreOther: !!o.ignoreOther, path: null, k: 0, repath: 0, fail: 0 }; d.gait = gait; d.poseName = gait === 'sniffwalk' ? 'sniff' : gait === 'crawl' ? 'crawl' : 'stand'; d.look = o.look || 'forward'; this.t = 0; if (o.onStart) o.onStart(d); },
-    update(d, dt) { this.t += dt; if (!d.goal || this.t > (o.timeout || 45)) { d.goal = null; return true; } return false; } }),
-  hold: (pose, dur, o: StepOpts = {}): Step => ({ text: o.text, start(d) { d.poseName = pose; d.look = o.look || 'around'; d.lookFn = o.lookFn || null; d.pant = !!o.pant; this.t = 0; this.dur = (['shake', 'bow', 'cower'].includes(pose) || o.fixed) ? dur : dur * (d.p.idle || 1); if (o.onStart) o.onStart(d); },
-    update(d, dt) { this.t += dt; if (o.onUpdate) o.onUpdate(d, dt, this.t); return this.t >= this.dur || (o.until && o.until(d, this.t)); } }),
-  face: (hFn, o: StepOpts = {}): Step => ({ text: o.text, start(d) { d.faceH = hFn(d); d.poseName = 'stand'; d.look = 'forward'; this.t = 0; }, update(d, dt) { this.t += dt; return d.faceH === null || this.t > 4; } }),
-  spin: (turns): Step => ({ start(d) { d.spinLeft = turns * Math.PI * 2; d.spinDir = rand() < 0.5 ? 1 : -1; d.poseName = 'stand'; d.look = 'forward'; }, update(d) { return d.spinLeft <= 0; } }),
-  // cats: paw at a fish, maybe hook one
+  ...steps,
   swat: (f, o: StepOpts = {}): Step => ({ text: o.text || 'Going for the fish', start(d) { this.t = 0; this.did = false; d.poseName = 'swat'; d.look = 'point'; d.lookFn = () => V3.set(f.x, WATER_Y - 2, f.z); d.hop = 0.5; d.faceH = null; },
     update(d, dt) {
       this.t += dt;
@@ -212,8 +195,6 @@ export const S = {
       return false;
     } }),
   // cats: climb a vertical (x,z = the grip point, top = height above ground), shimmy up and down
-  climb: (x, z, top, o: StepOpts = {}): Step => ({ text: o.text, start(d) { d.poseName = 'climbA'; d.look = 'forward'; this.t = 0; this.from = V2(d.pos.x, d.pos.y); d.climbOut = V2(d.pos.x, d.pos.y); d.elevT = top; d.onRoof = false; d.faceH = null; d.h = headingTo(x - d.pos.x, z - d.pos.y); },
-    update(d, dt) { this.t += dt; const k = smooth(0, 0.9, this.t); d.pos.set(lerp(this.from.x, x, k), lerp(this.from.y, z, k)); d.poseName = Math.floor(this.t * 3.2) % 2 ? 'climbA' : 'climbB'; return d.elev >= top - 0.6 && this.t > 0.9; } }),
   down: (): Step => ({ start(d) { this.t = 0; this.stage = d.onRoof && d.roofBack ? 0 : 1; this.from = V2(d.pos.x, d.pos.y); d.poseName = 'stand'; },
     update(d, dt) {
       this.t += dt;
@@ -232,15 +213,6 @@ export const S = {
       if (dist < 1.2) { d.fakeV = 0; return true; }
       d.h = headingTo(dx, dz); d.poseName = 'stand'; d.fakeV = 14 * K; d.pos.x += dx / dist * 14 * dt; d.pos.y += dz / dist * 14 * dt; d.elevT = roofTop(d.pos.x) - gyAt(d.pos.x, d.pos.y); return false;
     } }),
-  branchGo: (x, z, yTop, o: StepOpts = {}): Step => ({ text: o.text, start(d) { d.poseName = 'stand'; d.look = 'forward'; },
-    update(d, dt) {
-      const dx = x - d.pos.x, dz = z - d.pos.y, dist = Math.hypot(dx, dz);
-      d.elevT = yTop - gyAt(d.pos.x, d.pos.y);
-      if (dist < 0.8) { d.fakeV = 0; return true; }
-      d.h = headingTo(dx, dz); d.poseName = 'stand'; d.fakeV = 11 * K; const st = Math.min(dist, 11 * dt); d.pos.x += dx / dist * st; d.pos.y += dz / dist * st; return false;
-    } }),
-  call: (fn): Step => ({ start(d) { fn(d); }, update() { return true; } }),
-  // cats: one bound onto a lily pad, or off the last one onto dry land. A pad may wobble and tip them in.
   hop: (to: Pad | THREE.Vector2, o: StepOpts = {}): Step => ({ text: o.text, hopTo: to, start(d) {
       this.t = 0; this.from = V2(d.pos.x, d.pos.y); this.y0 = d.rootY; this.pad = (to as Pad).r !== undefined ? to : null;
       this.tx = this.pad ? this.pad.x : (to as THREE.Vector2).x; this.tz = this.pad ? this.pad.z : (to as THREE.Vector2).y;
