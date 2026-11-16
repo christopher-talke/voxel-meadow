@@ -1,17 +1,46 @@
-import type { Dog } from "../entities/dog";
 import * as THREE from "three";
-import { state } from "../engine/core/state";
-import { $, clamp, lerp, rand, store } from "../engine/core/util";
-import { COARSE, camera, controls, focus } from "../engine/render/stage";
-import { SH, roofTop } from "../world/layout";
-import { K } from "../engine/core/scale";
-import { CHERRY, TREES } from "../world/decor";
-import { groundTop } from "../world/mesh";
-import { WX, env } from "../engine/sky/sky";
-import { cats, dogs, ents } from "../entities/registry";
-import { showHint } from "../ui/hint";
-import { hooks } from "../engine/core/hooks";
+import { state } from "../core/state";
+import { $, clamp, lerp, rand, store } from "../core/util";
+import { COARSE, camera, controls, focus } from "../render/stage";
+import { K } from "../core/scale";
+import { WX, env } from "../sky/sky";
+import { hooks } from "../core/hooks";
 const WALLPAPER_BUILD = import.meta.env.PROD;
+
+/** Anything the camera can follow: an animal, usually. */
+export interface CamSubject { name: string; pos: THREE.Vector2; rootY: number; root: THREE.Object3D; [k: string]: any }
+/** What the camera needs from the content. Set once with configureCamera(). */
+export interface CameraConfig {
+  /** Everything that can be followed, in menu order. */
+  subjects: CamSubject[];
+  /** The group the default view keeps in frame. */
+  group: CamSubject[];
+  /** Ground or water height. */
+  ground(x: number, z: number): number;
+  /** Solid things above the ground (roofs, canopies) for line of sight; includeRoof is false for the orbit clip. */
+  solid(x: number, y: number, z: number, ground: number, includeRoof: boolean): boolean;
+  shots: Shot[];
+  /** How worth watching a subject is right now, for automatic cuts (higher is better). */
+  interest(e: CamSubject): number;
+  /** A camera mode's name for hints: 'both', 'orbit', 'cine', 'free' or a subject index. */
+  label(m: string | number): string;
+  hint(text: string, ms?: number): void;
+  /** The fade-to-black overlay used between cinematic shots, and the free-camera touch joystick. */
+  fade: HTMLElement; joy: HTMLElement;
+}
+let CAM: CameraConfig;
+const ents: CamSubject[] = [], dogs: CamSubject[] = [];
+let fadeEl: HTMLElement, joy: HTMLElement, joyK: HTMLElement;
+/** Bind the camera to the content and place it on the group. Call once, after the subjects exist. */
+export function configureCamera(c: CameraConfig) {
+  CAM = c; ents.push(...c.subjects); dogs.push(...c.group); fadeEl = c.fade; joy = c.joy; joyK = joy.querySelector("i")!;
+  wireJoystick();
+  focus.copy(focusGoal());
+  controls.target.copy(focus);
+  camera.position.set(focus.x + 62, focus.y + 50, focus.z + 104);
+}
+const showHint = (t: string, ms?: number) => CAM.hint(t, ms);
+const groundTop = (x: number, z: number) => CAM.ground(x, z);
 
 // ================= camera follow =================
 
@@ -52,25 +81,10 @@ export function focusGoal() {
   }
   return goalF.set(cx, cy + 7, cz);
 }
-focus.copy(focusGoal());
-controls.target.copy(focus);
-camera.position.set(focus.x + 62, focus.y + 50, focus.z + 104);
 
 // ================= camera: cycle, automatic switching, free-cam joystick, no ghosting through terrain =================
-const joy = $("joy"),
-  joyK = joy.querySelector("i")!;
 const CAM_ORDER = ["both", 0, 1, 2, 3, 4, "orbit", "cine", "free"];
-function camName(m) {
-  return m === "both"
-    ? "Watching everyone"
-    : m === "free"
-      ? "Free camera"
-      : m === "cine"
-        ? "Cinematic"
-        : m === "orbit"
-          ? "Island orbit"
-          : "Following " + ents[m].name;
-}
+const camName = (m) => CAM.label(m);
 export function setCamMode(m, manual) {
   if (state.camMode === "cine" && m !== "cine") cineStop();
   if (m === "orbit")
@@ -92,39 +106,7 @@ export function setCamMode(m, manual) {
   );
 }
 
-const ACT = {
-  ambush: 4,
-  spook: 4.5,
-  adventure: 3,
-  ball: 3.5,
-  contest: 3.5,
-  burst: 3,
-  tidy: 3,
-  grump: 3,
-  hello: 3,
-  fish: 3,
-  fishcarry: 3,
-  climb: 3,
-  perch: 2,
-  watchtail: 2.5,
-  tummy: 2,
-  displaced: 2,
-  leave: 2,
-  shakeoff: 2,
-  drink: 1.5,
-  sunbathe: 0.4,
-  nap: 0.1,
-  catnap: 0.1,
-  sit: 0.6,
-};
-function interest(e) {
-  let v = ACT[e.behaviour] !== undefined ? ACT[e.behaviour] : 1.2;
-  if (e.swimming) v = 5;
-  if (e.poseName === "sleep") v = 0.1;
-  if (e.v > 8 * K) v += 0.6;
-  if (e.wetV > 0.4) v += 0.3;
-  return v + rand() * 0.6;
-}
+const interest = (e) => CAM.interest(e);
 export function autoCamUpdate(dt) {
   if (
     !state.autoCam ||
@@ -182,6 +164,7 @@ addEventListener("keyup", (e) => {
   delete keys[e.key.toLowerCase()];
 });
 let joyId: number | null = null;
+function wireJoystick() {
 function joyMove(e) {
   const r = joy.getBoundingClientRect(),
     R = r.width / 2;
@@ -198,24 +181,25 @@ function joyMove(e) {
   joyK.style.transform =
     "translate(" + dx.toFixed(1) + "px," + dy.toFixed(1) + "px)";
 }
-joy.addEventListener("pointerdown", (e) => {
+  joy.addEventListener("pointerdown", (e) => {
   joyId = e.pointerId;
   joy.setPointerCapture(e.pointerId);
   joyMove(e);
   state.lastInteract = performance.now();
   e.preventDefault();
 });
-joy.addEventListener("pointermove", (e) => {
+  joy.addEventListener("pointermove", (e) => {
   if (e.pointerId === joyId) joyMove(e);
 });
-const joyEnd = (e) => {
+  const joyEnd = (e) => {
   if (e.pointerId !== joyId) return;
   joyId = null;
   mv.x = mv.y = 0;
   joyK.style.transform = "";
 };
-joy.addEventListener("pointerup", joyEnd);
-joy.addEventListener("pointercancel", joyEnd);
+  joy.addEventListener("pointerup", joyEnd);
+  joy.addEventListener("pointercancel", joyEnd);
+}
 const _fwd = new THREE.Vector3(),
   _rt = new THREE.Vector3(),
   _mv = new THREE.Vector3();
@@ -274,19 +258,7 @@ const _rc = new THREE.Vector3(),
 function solidAt(x, y, z, includeRoof = true) {
   const g = groundTop(x, z);
   if (y < g + 1.4) return true;
-  if (includeRoof && !state.seeThrough && x > SH.x0 && x < SH.x1 && z > SH.z0 && z < SH.z1) {
-    const r = roofTop(x);
-    if (y < r + 0.6 && y > r - 3.2) return true;
-  }
-  for (const t of TREES) {
-    const tx = t[0] * 4;
-    const tz = t[1] * 4;
-    const radius = Math.max(5.5, (t[2] || 3) * 2.6);
-    const d2 = (x - tx) ** 2 + (z - tz) ** 2;
-    const canopyBase = Math.max(g, groundTop(tx, tz) + 2);
-    if (d2 <= radius * radius && y > canopyBase && y < canopyBase + 30) return true;
-  }
-  return false;
+  return CAM.solid(x, y, z, g, includeRoof);
 }
 const _losDir = new THREE.Vector3();
 /**
@@ -346,49 +318,12 @@ export interface Shot {
     y: number;
     y1?: number;
     da: number;
-    cherry?: boolean;
+    /** Height to look at, at the orbit centre (default 6). */
+    lookY?: number;
   };
   follow?: boolean;
   sunward?: boolean;
 }
-export const SHOTS: Shot[] = [
-  {
-    name: "The shelter",
-    cam: [P3(70, 30, 80), P3(20, 24, 46), P3(-22, 19, 24)],
-    look: [P3(-55, 8, 14), P3(-68, 8, 4), P3(-74, 7, -4)],
-    dur: 30,
-  },
-  {
-    name: "Along the lake",
-    cam: [P3(30, 18, 100), P3(80, 13, 126), P3(140, 13, 132), P3(196, 20, 118)],
-    look: [P3(100, 4, 160), P3(140, 5, 164), P3(185, 0, 175), P3(210, 0, 190)],
-    dur: 34,
-  },
-  {
-    name: "Over the meadow",
-    orbit: { c: P3(0, 0, 0), r: 300, y: 170, da: 0.9 },
-    dur: 40,
-  },
-  {
-    name: "The far field",
-    cam: [P3(140, 20, -10), P3(190, 18, -44), P3(244, 22, -96)],
-    look: [P3(232, 4, -72), P3(246, 4, -84), P3(268, 4, -118)],
-    dur: 30,
-  },
-  {
-    name: "Under the cherry",
-    orbit: { cherry: true, r: 92, y: 18, y1: 44, da: 1.1 },
-    dur: 30,
-  },
-  {
-    name: "From the jetty",
-    cam: [P3(146, 14, 160), P3(130, 16, 160), P3(110, 20, 158)],
-    look: [P3(40, 14, 70), P3(0, 12, 20), P3(-40, 10, 0)],
-    dur: 28,
-  },
-  { name: "Companion", follow: true, dur: 26 },
-  { name: "Into the sun", sunward: true, dur: 32 },
-];
 export const cine: {
   i: number;
   t: number;
@@ -396,7 +331,7 @@ export const cine: {
   curve: THREE.CatmullRomCurve3 | null;
   lookC: THREE.CatmullRomCurve3 | null;
   a0: number;
-  who: Dog | null;
+  who: CamSubject | null;
   order: number[];
 } = {
   i: -1,
@@ -408,7 +343,6 @@ export const cine: {
   who: null,
   order: [],
 };
-const fadeEl = $("fade");
 const liftY = (v, min) => {
   const g = groundTop(v.x, v.z);
   v.y = Math.max(v.y, (g > -40 ? g : 0) + min);
@@ -417,14 +351,14 @@ const liftY = (v, min) => {
 function cineNext() {
   if (!cine.order.length) {
     const golden = env.el > -4 && env.el < 18 && WX.cover < 0.6;
-    cine.order = SHOTS.map((_, i) => i)
-      .filter((i) => !SHOTS[i].sunward || golden)
+    cine.order = CAM.shots.map((_, i) => i)
+      .filter((i) => !CAM.shots[i].sunward || golden)
       .sort(() => rand() - 0.5);
-    if (golden) cine.order.unshift(SHOTS.findIndex((x) => x.sunward));
+    if (golden) cine.order.unshift(CAM.shots.findIndex((x) => x.sunward));
     if (cine.order[0] === cine.i) cine.order.push(cine.order.shift()!);
   }
   cine.i = cine.order.shift()!;
-  const s = (cine.shot = SHOTS[cine.i]);
+  const s = (cine.shot = CAM.shots[cine.i]);
   cine.t = 0;
   cine.a0 = rand() * 6.283;
   if (s.cam) {
@@ -477,7 +411,7 @@ export function cineUpdate(dt) {
     cine.lookC!.getPoint(u, _cl);
   } else if (s.orbit) {
     const o = s.orbit!,
-      c = o.cherry ? P3(CHERRY.x, 0, CHERRY.z) : o.c!,
+      c = o.c!,
       a = cine.a0 + o.da * u;
     _cp.set(
       c.x + Math.cos(a) * o.r,
@@ -485,7 +419,7 @@ export function cineUpdate(dt) {
       c.z + Math.sin(a) * o.r,
     );
     liftY(_cp, 9);
-    _cl.set(c.x, o.cherry ? 26 : 6, c.z);
+    _cl.set(c.x, o.lookY ?? 6, c.z);
   } else if (s.sunward) {
     // look out along the sun, slowly craning up from the meadow
     const hx = env.sunDir.x,
@@ -517,7 +451,7 @@ export function cineUpdate(dt) {
   // drift the aim a little towards whoever is nearby, so shots are rarely empty
   if (!s.follow && !s.sunward) {
     let bd = 70,
-      who: Dog | null = null;
+      who: CamSubject | null = null;
     for (const e of ents) {
       const d = Math.hypot(e.pos.x - _cl.x, e.pos.y - _cl.z);
       if (d < bd) {

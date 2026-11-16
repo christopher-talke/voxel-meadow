@@ -7,7 +7,7 @@ import { ents } from '../entities/registry';
 import { hideHint } from './hint';
 import { SND, tgSound } from '../audio/sound';
 import { timeText } from '../world/clock';
-import { setCamMode } from '../camera/camera';
+import { setCamMode } from '../engine/camera/camera';
 import { followDog } from './interact';
 
 const WALLPAPER_BUILD = import.meta.env.PROD;

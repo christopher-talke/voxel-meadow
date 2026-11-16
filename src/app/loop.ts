@@ -19,7 +19,7 @@ import { CLOTHS } from '../entities/cloth';
 import { updateBall } from '../entities/ball';
 import { updateFrogs } from '../entities/frogs';
 import { mistU, updatePond } from '../world/pond';
-import { autoCamUpdate, camClipBegin, camClipEnd, cineUpdate, focusGoal, freeMove, freeT, hasLineOfSight } from '../camera/camera';
+import { autoCamUpdate, camClipBegin, camClipEnd, cineUpdate, focusGoal, freeMove, freeT, hasLineOfSight } from '../engine/camera/camera';
 import { clothCheck, ringMesh } from '../ui/interact';
 import { updateTags } from '../ui/menu';
 
