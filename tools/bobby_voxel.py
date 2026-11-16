@@ -108,8 +108,8 @@ def colour(x, y, z, p):
     if p == "head":
         if 17 <= x <= 18 and 30 <= y <= 31 and 1 <= abs(z) <= 2:
             return TAN                      # round eyebrow spots
-        if abs(z) >= 3 and 25.5 <= y <= 28.8 and x >= 14:
-            return TAN                      # cheek patches bridging muzzle and cap
+        if abs(z) >= 3 and 26 <= y <= 28 and x >= 15:
+            return TAN                      # small cheek patches beside the muzzle
         if y <= 26 and x >= 15:
             return W                        # jaw and throat
         return BLK                          # cap over the forehead and around the eyes
@@ -125,10 +125,10 @@ def colour(x, y, z, p):
     if p == "leg":
         if x > 0:
             return W                        # white front legs
-        if y >= 12 + 1.2 * n:
-            return BLK                      # black upper thighs
+        if y >= 9 + 1.0 * n:
+            return BLK                      # black thighs, down to the hock
         if y >= 4.2 + 0.6 * n:
-            return TAN                      # tan lower thighs and hocks
+            return TAN                      # a little tan at the hocks
         return W                            # white paws
     return W
 

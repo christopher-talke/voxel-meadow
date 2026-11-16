@@ -1,4 +1,4 @@
-from common import DIST, THREE_DIR
+from common import DIST, THREE_DIR, CHROME
 import asyncio, sys, json
 from playwright.async_api import async_playwright
 NM = THREE_DIR
@@ -13,7 +13,7 @@ H = int(sys.argv[5]) if len(sys.argv) > 5 else 800
 
 async def main():
     async with async_playwright() as p:
-        b = await p.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'])
+        b = await p.chromium.launch(executable_path=CHROME, args=['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'])
         pg = await b.new_page(viewport={'width': W, 'height': H})
         errs = []
         pg.on('console', lambda m: errs.append(m.type + ': ' + m.text) if m.type in ('error', 'warning') else None)

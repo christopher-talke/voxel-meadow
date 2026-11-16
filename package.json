@@ -6,10 +6,10 @@
   "description": "A gentle 3D voxel meadow where Murphy, Mali, Bobby, Billy and Ashy still live.",
   "scripts": {
     "dev": "vite",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && node tools/check-boundary.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "python3 test/soak.py"
+    "test": "sh -c 'P=python3; [ -x .venv/bin/python ] && P=.venv/bin/python; $P test/soak.py'"
   },
   "devDependencies": {
     "@types/three": "0.128.0",
