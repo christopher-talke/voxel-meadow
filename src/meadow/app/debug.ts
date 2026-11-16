@@ -69,3 +69,5 @@ Object.assign(window.MEADOW, {
 });
 import { mockBeyond } from './mockBeyond';
 Object.assign(window.MEADOW, { mockBeyond });
+import { getDirector, setDirector } from '../../engine/director/director';
+Object.assign(window.MEADOW, { setDirector, getDirector });

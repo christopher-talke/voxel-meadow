@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Animal, crowd } from '../../engine/animal/animal';
+import { type DirectorSummary, type Episode, applyDirection, getDirector, localDirector, weightedPick } from '../../engine/director/director';
 import { state } from '../../engine/core/state';
 import { V2, V3, clamp, damp, headingTo, lerp, rand, rr, smooth, wrapA } from '../../engine/core/util';
 import { camera, focus, scene } from '../../engine/render/stage';
@@ -9,7 +10,7 @@ import { B, K } from '../../engine/core/scale';
 import { BALL_R } from '../world/decor';
 import { UNIT } from '../../engine/render/mesher';
 import { WX, todKey, underRoof } from '../../engine/sky/sky';
-import { cats, dogs } from './registry';
+import { cats, dogs, ents } from './registry';
 import { SFX, SND, sndActivity } from '../audio/sound';
 import { dropTex, heartTex, puff, zTex } from '../../engine/fx/sprites';
 import { type WetUniforms, dampMark, wetFur, wetRand } from '../../engine/fx/wet';
@@ -25,6 +26,8 @@ const BUSY = new Set(['hello', 'adventure', 'chase', 'zoomies', 'burst', 'spook'
 // per-frame scratch, hoisted so the update loop doesn't allocate
 const IDLE_POSE = new Set(['stand', 'sniff', 'sit']), SNUG = new Set(['lie', 'sleep']), NO_WATCH = new Set(['watchtail', 'leave', 'ball']), SHELTERING = new Set(['shelter', 'bedtime']);
 export class Dog extends Animal {
+  /** Recent episodes, newest last (see memory.ts). */
+  episodes: Episode[] = [];
   declare ambushCd: number;
   declare dryT: any;
   declare fishM: THREE.Group;
@@ -162,13 +165,19 @@ export class Dog extends Animal {
       nap: W.nap * ((this.energy < 0.35 ? 6 : 0.35) + (night ? 3 : 0) + (o.behaviour === 'nap' ? 3 : 0)),
     };
     if (this.lastB && w[this.lastB] !== undefined) w[this.lastB] *= this.lastB === 'wander' ? 0.6 : 0.15;
-    let sum = 0; for (const k in w) sum += w[k];
-    let r = rand() * sum, key = 'wander';
-    for (const k in w) { r -= w[k]; if (r <= 0) { key = k; break; } }
+    // a director may lean on the table (never past it: a zero weight stays zero); with none set this is the plain weighted pick
+    const dir = getDirector(), d = dir === localDirector ? null : dir.direct(this.summary(w));
+    applyDirection(w, d);
+    const key = d && d.intent && w[d.intent] > 0 ? d.intent : weightedPick(w, 'wander');
     if (key === 'adventure') { const ks = ['jetty', 'beach', 'lookout', 'woods', 'field'].filter(k => k !== this.lastPlace); const pk = ks[Math.floor(rand() * ks.length)]; this.lastPlace = o.lastPlace = pk; this.setQueue(this.adventure(pk), 'adventure'); return; }
     if (key === 'drink') { this.setQueue(PLACES.drink.act(this, 0, this.pos), 'drink'); return; }
     if (key === 'hello') { this.setQueue(this.B('hello', true), 'hello'); return; }
     this.setQueue(this.B(key), key);
+  }
+  /** What a director sees when this animal chooses. */
+  summary(weights: Record<string, number>): DirectorSummary {
+    return { name: this.name, weights, energy: this.energy, t: state.T, simMs: state.simMs, tod: todKey, weather: { kind: WX.kind, rain: WX.rain, wind: WX.wind }, recent: this.episodes || [],
+      behaviour: this.behaviour, lastB: this.lastB, cat: !!this.p.cat, near: ents.filter(e => e !== this && Math.hypot(e.pos.x - this.pos.x, e.pos.y - this.pos.y) < 60).map(e => e.name) };
   }
   B(key: string, unprompted?: boolean): Step[] {
     if (this.p.cat && key === 'nap') key = 'catnap';
