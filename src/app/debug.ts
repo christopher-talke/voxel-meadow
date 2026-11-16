@@ -2,7 +2,7 @@ import { state } from '../core/state';
 import { camera, controls, focus } from '../render/stage';
 import { B, BEDS, G, colAt, cols, idxOf } from '../world/layout';
 import { TREES } from '../world/decor';
-import { WX, env, moonDisc, setTod } from '../sim/sky';
+import { WX, env, moonDisc, setTod, updateEnv } from '../sim/sky';
 import { cats, dogs } from '../entities/registry';
 import { SFX, SND } from '../audio/sound';
 import { timeText } from '../world/clock';
@@ -37,7 +37,7 @@ function fnv(): { add(v: number | string): void; hex(): string } {
 Object.assign(window.MEADOW, {
   LOOK,
   /** Place the camera for a still: freezes the follow logic so the view stays put. */
-  view(cx: number, cy: number, cz: number, tx: number, ty: number, tz: number) { window.MEADOW.freezeCam = true; state.camMode = "free"; controls.autoRotate = false; camera.position.set(cx, cy, cz); controls.target.set(tx, ty, tz); focus.copy(controls.target); freeT.copy(focus); controls.update(); },
+  view(cx: number, cy: number, cz: number, tx: number, ty: number, tz: number, fogPush = 0) { state.fogPush = fogPush; window.MEADOW.freezeCam = true; state.camMode = "free"; controls.autoRotate = false; camera.position.set(cx, cy, cz); controls.target.set(tx, ty, tz); focus.copy(controls.target); freeT.copy(focus); controls.update(); updateEnv(0, focus); },
   /** Per-system hashes of generated world state. A pure refactor must leave every one unchanged. */
   fingerprint() {
     const out: Record<string, string> = {};

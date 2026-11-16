@@ -27,7 +27,7 @@ SCEN = [
 VIEWS_JS = """(() => { const M = MEADOW, d = M.ORBIT.d, el = M.ORBIT.el, L = M.LOOK, ly = L.top * 4;
   const a = M.cats[1], m = M.dogs[0];
   return {
-    orbit: [Math.cos(0.6) * d * Math.cos(el), d * Math.sin(el), Math.sin(0.6) * d * Math.cos(el), 0, 0, 0],
+    orbit: [Math.cos(0.6) * d * Math.cos(el), d * Math.sin(el), Math.sin(0.6) * d * Math.cos(el), 0, 0, 0, d],
     shelter: [10, 38, 70, -74, 6, 0],
     lake: [40, 46, 250, 150, 0, 160],
     bench: [L.i * 4 + 60, ly + 32, L.j * 4 + 70, L.i * 4, ly + 10, L.j * 4 - 12],
