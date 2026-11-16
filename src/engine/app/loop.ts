@@ -92,7 +92,15 @@ function frame(now) {
     CFG.beforeRender?.(0);
     renderer.render(scene, camera); requestAnimationFrame(frame); return;
   }
-  const dt = Math.max(0.001, Math.min(0.05, (now - last) / 1000)); last = Math.max(last, now); state.T += dt;
+  const dt = Math.max(0.001, Math.min(0.05, (now - last) / 1000)); last = Math.max(last, now);
+  tick(dt, now);
+  renderer.render(scene, camera);
+  camClipEnd();
+  requestAnimationFrame(frame);
+}
+/** Everything in a frame but the render: sim, camera (left clipped for the render), late hooks. */
+function tick(dt: number, now: number) {
+  state.T += dt;
   starU.uTime.value = state.T; if (CFG.clocks) for (const c of CFG.clocks) c.value = state.T;
   stepWorld(dt);
   CFG.visuals?.(dt);
@@ -156,9 +164,10 @@ function frame(now) {
   else if (!state.gesture && controls.target.distanceTo(focus) > 0.01) { focus.copy(controls.target); }
   sky.position.copy(camera.position);
   CFG.beforeRender?.(dt);
-  renderer.render(scene, camera);
-  camClipEnd();
-  requestAnimationFrame(frame);
+}
+/** Test hook: run whole frames without rendering, calling sample() with the view each one would have shown. */
+export function runFrames(n: number, dt: number, sample?: () => void) {
+  for (let i = 0; i < n; i++) { tick(dt, performance.now()); sample?.(); camClipEnd(); }
 }
 /** Bind the loop to the content, size the view and start rendering. */
 export function startLoop(c: LoopConfig) {

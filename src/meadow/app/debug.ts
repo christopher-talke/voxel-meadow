@@ -75,3 +75,12 @@ import { memoryMul } from '../entities/memory';
 Object.assign(window.MEADOW, { setLively, get lively() { return LIVELY.on; }, temperament, temperMul, memoryMul });
 import { agentsOf } from '../../engine/ambient/agents';
 Object.assign(window.MEADOW, { agentsOf });
+import { runFrames } from '../../engine/app/loop';
+Object.assign(window.MEADOW, {
+  /** Run `sec` seconds of whole frames without rendering and log the rendered view each frame: [dt, cam xyz, target xyz, orbit fit distance, orbit phase, orbit subject]. */
+  camRun(sec: number, dt = 1 / 30) {
+    const log: any[] = [], M = window.MEADOW;
+    runFrames(Math.round(sec / dt), dt, () => { const c = camera.position, g = controls.target, o = M.orbitDirector; log.push([dt, c.x, c.y, c.z, g.x, g.y, g.z, ORBIT.d, o ? o.phase : '', o && o.who ? o.who.name : '']); });
+    return log;
+  },
+});
