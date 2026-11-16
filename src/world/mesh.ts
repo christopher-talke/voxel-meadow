@@ -4,34 +4,13 @@ import { DPR, scene } from '../engine/render/stage';
 import { BEDS, DECK, FIELD, POLE, SH, SHELTER_POSTS } from './layout';
 import { colAt, colXZ, cols, isWaterCol } from '../engine/terrain/grid';
 import { B } from '../engine/core/scale';
-import { BALL, BALL_R, CHERRY, DK, ballBoxes, boxes, decor } from './decor';
+import { BALL, BALL_R, CHERRY, ballBoxes, boxes, decor } from './decor';
+import { UNIT, applyCutaway, buildBoxes, chunks, cutU, finish, freeze, makeMesher, meshColumns, meshVoxels } from '../engine/render/mesher';
 
-// ================= meshing =================
-const quadsP: number[] = [], quadsN: number[] = [], quadsC: number[] = [], quadsI: number[] = [];
-function makeMesher() { return { p: [], n: [], c: [], i: [], v: 0 }; }
+// ================= the island's meshes, built with the engine mesher =================
 const WAT = makeMesher();
 const TERR_MESHES: THREE.Mesh[] = [];
-// terrain and decor are split into square chunks so the camera and the sun's shadow camera can skip what they can't see
-const CHUNK = 32 * B, TERR_CH = new Map<number, any>(), DEC_CH = new Map<number, any>();
-const chunkAt = (map: Map<number, any>, x: number, z: number) => { const k = (Math.floor(x / CHUNK) + 64) * 128 + Math.floor(z / CHUNK) + 64; let m = map.get(k); if (!m) { m = makeMesher(); map.set(k, m); } return m; };
-const _cc = new THREE.Color();
-function quad(M, ax, ay, az, ux, uy, uz, vx, vy, vz, nx, ny, nz, col) {
-  const cx = uy * vz - uz * vy, cy = uz * vx - ux * vz, cz = ux * vy - uy * vx;
-  if (cx * nx + cy * ny + cz * nz < 0) { let t = ux; ux = vx; vx = t; t = uy; uy = vy; vy = t; t = uz; uz = vz; vz = t; }
-  M.p.push(ax, ay, az, ax + ux, ay + uy, az + uz, ax + ux + vx, ay + uy + vy, az + uz + vz, ax + vx, ay + vy, az + vz);
-  for (let k = 0; k < 4; k++) M.n.push(nx, ny, nz);
-  _cc.setHex(col); for (let k = 0; k < 4; k++) M.c.push(_cc.r, _cc.g, _cc.b);
-  M.i.push(M.v, M.v + 1, M.v + 2, M.v, M.v + 2, M.v + 3); M.v += 4;
-}
-function finish(M, mat) {
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(M.p, 3));
-  g.setAttribute('normal', new THREE.Float32BufferAttribute(M.n, 3));
-  g.setAttribute('color', new THREE.Float32BufferAttribute(M.c, 3));
-  g.setIndex(M.v > 65535 ? new THREE.Uint32BufferAttribute(M.i, 1) : new THREE.Uint16BufferAttribute(M.i, 1));
-  const m = new THREE.Mesh(g, mat); m.frustumCulled = false; return m;
-}
-const H = B / 2;
+const TERR_CH = chunks(), DEC_CH = chunks();
 function topColour(c) {
   const x = c.i * B, z = c.j * B;
   if (c.type === 'shallow') return jit(0xd8c491, 0.04);
@@ -46,77 +25,15 @@ function topColour(c) {
 }
 const sideColour = (c, depth) => depth === 0 ? (c.type === 'sand' ? jit(0xdcc995, 0.04) : c.type === 'path' ? jit(0xb08f62, 0.04) : isWaterCol(c) ? jit(0x8a7a60, 0.05) : jit(0x6aa451, 0.05))
   : depth <= 2 ? jit(rand() < 0.5 ? 0x8b5e3c : 0x7c5236, 0.05) : rand() < 0.07 ? jit(0x6f8f55, 0.06) : jit(depth > 12 ? 0x767a82 : 0x8b8f96, 0.05);
-for (const c of cols) {
-  if (!c) continue;
-  const x = c.i * B, z = c.j * B, TERR = chunkAt(TERR_CH, x, z);
-  quad(TERR, x - H, c.top * B, z - H, B, 0, 0, 0, 0, B, 0, 1, 0, topColour(c));
-  quad(TERR, x - H, c.bot * B, z - H, B, 0, 0, 0, 0, B, 0, -1, 0, jit(0x6c7077, 0.05));
-  for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-    const n = colAt(c.i + di, c.j + dj);
-    for (let k = c.bot + 1; k <= c.top; k++) {
-      if (n && k <= n.top && k > n.bot) continue;
-      const fx = x + di * H, fz = z + dj * H;
-      if (di) quad(TERR, fx, (k - 1) * B, z - H, 0, B, 0, 0, 0, B, di, 0, 0, sideColour(c, c.top - k));
-      else quad(TERR, x - H, (k - 1) * B, fz, B, 0, 0, 0, B, 0, 0, 0, dj, sideColour(c, c.top - k));
-    }
-  }
-  if (c.wl !== null) {
-    quad(WAT, x - H, c.wl, z - H, B, 0, 0, 0, 0, B, 0, 1, 0, 0xffffff);
-    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      const n = colAt(c.i + di, c.j + dj);
-      if (n && n.wl !== null && n.wl < c.wl - 0.5) {
-        const h = c.wl - n.wl;
-        if (di) quad(WAT, x + di * H, n.wl, z - H, 0, h, 0, 0, 0, B, di, 0, 0, 0xeaf6ff);
-        else quad(WAT, x - H, n.wl, z + dj * H, B, 0, 0, 0, h, 0, 0, 0, dj, 0xeaf6ff);
-      }
-    }
-  }
-}
-const D6 = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
-const terrainSolid = (i, k, j) => { const c = colAt(i, j); return !!c && k <= c.top && k > c.bot; };
-for (const [key, col] of decor) {
-  const j = key % 2048 - 600, k = Math.floor(key / 2048) % 2048 - 600, i = Math.floor(key / (2048 * 2048)) - 600;
-  for (const [di, dk, dj] of D6) {
-    if (decor.has(DK(i + di, k + dk, j + dj)) || terrainSolid(i + di, k + dk, j + dj)) continue;
-    const x = i * B, y = (k - 0.5) * B, z = j * B, DEC = chunkAt(DEC_CH, x, z);
-    if (di) quad(DEC, x + di * H, y - H, z - H, 0, B, 0, 0, 0, B, di, 0, 0, col);
-    else if (dk) quad(DEC, x - H, y + dk * H, z - H, B, 0, 0, 0, 0, B, 0, dk, 0, col);
-    else quad(DEC, x - H, y - H, z + dj * H, B, 0, 0, 0, B, 0, 0, 0, dj, col);
-  }
-}
+meshColumns(cols, { top: topColour, bottom: () => jit(0x6c7077, 0.05), side: sideColour }, TERR_CH, WAT);
+meshVoxels(decor, DEC_CH);
 export const vcMat = new THREE.MeshLambertMaterial({ vertexColors: true });
-/** A static mesh: never moves, so its matrices are computed once rather than every frame. */
-export const freeze = <T extends THREE.Object3D>(o: T): T => { o.updateMatrix(); o.updateMatrixWorld(true); o.matrixAutoUpdate = false; return o; };
-const chunked = (map: Map<number, any>, mat: THREE.Material, out?: THREE.Mesh[]) => { for (const M of map.values()) { if (!M.v) continue; const m = finish(M, mat); m.frustumCulled = true; m.geometry.computeBoundingSphere(); m.receiveShadow = m.castShadow = true; scene.add(freeze(m)); if (out) out.push(m); } };
-chunked(TERR_CH, vcMat, TERR_MESHES);
-export const cutU = { uFocus: { value: new THREE.Vector3() }, uCam: { value: new THREE.Vector3() }, uRoof: { value: 0 }, uCutOn: { value: 1 } };
-const decorMat = new THREE.MeshLambertMaterial({ vertexColors: true });
-decorMat.onBeforeCompile = sh => {
-  Object.assign(sh.uniforms, cutU);
-  sh.vertexShader = 'varying vec3 vWP;\n' + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n  vWP = (modelMatrix * vec4(transformed, 1.0)).xyz;');
-  sh.fragmentShader = 'varying vec3 vWP;\nuniform vec3 uFocus;\nuniform vec3 uCam;\nuniform float uCutOn;\n' + sh.fragmentShader.replace('void main() {', `void main() {
-    vec3 ab = uCam - uFocus; float t = clamp(dot(vWP - uFocus, ab) / dot(ab, ab), 0.0, 1.0);
-    float d = length(vWP - (uFocus + ab * t)); float r = mix(14.0, 34.0, t);
-    if (uCutOn > 0.5 && t > 0.03 && vWP.y > uFocus.y - 2.0 && d < r) {
-      float n = fract(sin(dot(floor(gl_FragCoord.xy / 2.0), vec2(12.9898, 78.233))) * 43758.5453);
-      if (n < smoothstep(r, r * 0.5, d)) discard;
-    }`);
-};
-chunked(DEC_CH, decorMat);
+TERR_CH.build(vcMat, scene, TERR_MESHES);
+const decorMat = applyCutaway(new THREE.MeshLambertMaterial({ vertexColors: true }));
+DEC_CH.build(decorMat, scene);
 export const waterMat = new THREE.MeshLambertMaterial({ color: 0x5fb3d9, vertexColors: true, transparent: true, opacity: 0.74, side: THREE.DoubleSide });
 const waterMesh = finish(WAT, waterMat); waterMesh.receiveShadow = true; scene.add(freeze(waterMesh));
 
-export const UNIT = new THREE.BoxGeometry(1, 1, 1);
-function buildBoxes(list, mat, cast = true) {
-  const m = new THREE.InstancedMesh(UNIT, mat, list.length);
-  const o = new THREE.Object3D(), c = new THREE.Color();
-  list.forEach((b, i) => {
-    o.position.set(b[0], b[1], b[2]); o.rotation.set(0, b[7] || 0, 0); o.scale.set(b[3], b[4], b[5]); o.updateMatrix();
-    m.setMatrixAt(i, o.matrix); c.setHex(b[6]); m.setColorAt(i, c);
-  });
-  m.frustumCulled = false; m.castShadow = cast; m.receiveShadow = true;
-  return m;
-}
 const boxMat = new THREE.MeshLambertMaterial();
 scene.add(freeze(buildBoxes(boxes, boxMat)));
 const bedBoxes: number[][] = [];

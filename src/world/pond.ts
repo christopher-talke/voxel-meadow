@@ -4,7 +4,8 @@ import { DPR, camera, hemi, scene, sun } from '../engine/render/stage';
 import { JETTY, LAKE, SPILL, WATER_Y } from './layout';
 import { G, colAt, colXZ, idxOf } from '../engine/terrain/grid';
 import { B } from '../engine/core/scale';
-import { UNIT, waterMat } from './mesh';
+import { waterMat } from './mesh';
+import { UNIT } from '../engine/render/mesher';
 import { dropTex, puff } from '../engine/fx/sprites';
 
 // ================= the pond: a waterfall off the island edge, and lily pads =================

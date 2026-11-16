@@ -4,7 +4,8 @@ import { V3, headingTo, rand, reduceMotion, rr, smooth } from '../engine/core/ut
 import { DPR, camera, controls, focus, renderer, scene, sky, stage, starU } from '../engine/render/stage';
 import { SH } from '../world/layout';
 import { K } from '../engine/core/scale';
-import { butterflies, clouds, cutU, fireU, groundTop, lantern, lanternMat, petalMesh, petals, spawnPetal } from '../world/mesh';
+import { butterflies, clouds, fireU, groundTop, lantern, lanternMat, petalMesh, petals, spawnPetal } from '../world/mesh';
+import { cutU } from '../engine/render/mesher';
 import { env, updateEnv } from '../sim/sky';
 import type { Dog } from '../entities/dog';
 import { cats, dogs, ents } from '../entities/registry';

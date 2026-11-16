@@ -4,7 +4,7 @@ import { scene } from '../engine/render/stage';
 import { LAKE, WATER_Y } from '../world/layout';
 import { G, colAt, colXZ, cols, idxOf, isWaterCol } from '../engine/terrain/grid';
 import { B } from '../engine/core/scale';
-import { UNIT } from '../world/mesh';
+import { UNIT } from '../engine/render/mesher';
 import { PADS, padY, type Pad } from '../world/pond';
 import { env } from '../sim/sky';
 import { ents } from './registry';

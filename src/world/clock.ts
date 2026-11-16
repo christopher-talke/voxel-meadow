@@ -3,7 +3,8 @@ import { smooth } from '../engine/core/util';
 import { scene } from '../engine/render/stage';
 import { block } from '../engine/terrain/grid';
 import { B } from '../engine/core/scale';
-import { UNIT, groundTop } from './mesh';
+import { groundTop } from './mesh';
+import { UNIT } from '../engine/render/mesher';
 import { WX, env, simDate } from '../sim/sky';
 
 // ================= the park clock, so the meadow's time is part of the world =================

@@ -3,7 +3,8 @@ import { state } from '../engine/core/state';
 import { scene } from '../engine/render/stage';
 import { block } from '../engine/terrain/grid';
 import { B } from '../engine/core/scale';
-import { UNIT, groundTop } from './mesh';
+import { groundTop } from './mesh';
+import { UNIT } from '../engine/render/mesher';
 import { WX } from '../sim/sky';
 
 // ================= the whistle post: a brass whistle on a cord that you tap to call everyone =================
