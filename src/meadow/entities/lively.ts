@@ -5,8 +5,8 @@ import { temperamentDirector } from './temperament';
 import { attentionTick, resetAttention } from './attention';
 
 // ================= lively mode: daily temperament, memory and attention =================
-// Off by default until signed off: with it off the animals choose exactly as they always have.
-// Turn on with ?lively in the URL, MEADOW.setLively(true), or the stored preference.
+// On by default (signed off 2026-11-16). Turned off from the settings menu, with ?calm, or MEADOW.setLively(false);
+// with it off the animals choose exactly as they did before it existed.
 export const LIVELY = { on: false };
 export function setLively(on: boolean, persist = true) {
   LIVELY.on = on;
@@ -21,4 +21,5 @@ export function livelyStep(dt: number) {
   attentionTick(dt);
   if ((saveT += dt) > 30) { saveT = 0; saveMemory(); }
 }
-setLively(/[?&]lively\b/.test(location.search) || store.get('meadow-lively') === 1, false);
+// on unless the viewer turned it off in settings, or the address asks for ?calm (the old behaviour, for comparison)
+setLively(/[?&]lively\b/.test(location.search) || (!/[?&]calm\b/.test(location.search) && store.get('meadow-lively') !== 0), false);

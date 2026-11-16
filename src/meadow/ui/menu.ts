@@ -1,3 +1,4 @@
+import { LIVELY, setLively } from '../entities/lively';
 import { hooks } from '../../engine/core/hooks';
 import { state, type TimeMode } from '../../engine/core/state';
 import { $, V3, clamp, rr, store } from '../../engine/core/util';
@@ -15,13 +16,14 @@ const WALLPAPER_BUILD = import.meta.env.PROD;
 // the settings menu: one button, a tidy panel, and it all fades away when you leave it alone
 const menuEl = $('menu'), btnMenu = $('btn-menu'), skyNow = $('skynow');
 const selCam = $<HTMLSelectElement>('sel-cam'), selTime = $<HTMLSelectElement>('sel-time'), selWx = $<HTMLSelectElement>('sel-wx');
+const tgLively = $<HTMLInputElement>('tg-lively');
 const tgAuto = $<HTMLInputElement>('tg-auto'), tgSee = $<HTMLInputElement>('tg-see'), tgTags = $<HTMLInputElement>('tg-tags'), tagsEl = $('tags');
 const WXNAME = { clear: 'clear', cloudy: 'cloudy', windy: 'windy', rain: 'raining', storm: 'stormy' };
 let menuT = 0, idleT = 0;
 if (WALLPAPER_BUILD) document.documentElement.setAttribute('data-wallpaper', '1');
 export function syncMenu() {
   selCam.value = String(state.camMode); selTime.value = state.timeMode; selWx.value = WX.mode;
-  tgAuto.checked = state.autoCam; tgSee.checked = state.seeThrough; tgTags.checked = state.showTags; tgSound.checked = SND.on;
+  tgAuto.checked = state.autoCam; tgSee.checked = state.seeThrough; tgTags.checked = state.showTags; tgSound.checked = SND.on; tgLively.checked = LIVELY.on;
   skyNow.textContent = timeText() + ' in the meadow, ' + WXNAME[WX.kind];
 }
 hooks.syncMenu = syncMenu;
@@ -33,6 +35,7 @@ selCam.addEventListener('change', () => { const v = selCam.value; setCamMode(/^\
 selTime.addEventListener('change', () => { const v = selTime.value; if (v === 'live') state.simMs = Date.now(); state.timeMode = v as TimeMode; store.set('meadow-time', v); selTime.blur(); syncMenu(); });
 selWx.addEventListener('change', () => { const v = selWx.value; WX.mode = v; store.set('meadow-wx', v); if (v === 'auto') WX.left = rr(120, 300); selWx.blur(); syncMenu(); });
 tgAuto.addEventListener('change', () => { state.autoCam = tgAuto.checked; store.set('meadow-autocam', state.autoCam ? '1' : '0'); state.autoT = 99; });
+tgLively.addEventListener('change', () => setLively(tgLively.checked));
 tgSee.addEventListener('change', () => { state.seeThrough = tgSee.checked; store.set('meadow-see', state.seeThrough ? '1' : '0'); });
 tgTags.addEventListener('change', () => { state.showTags = tgTags.checked; store.set('meadow-tags', state.showTags ? '1' : '0'); tagsEl.hidden = !state.showTags; shown.fill(''); });
 tagsEl.hidden = !state.showTags;
