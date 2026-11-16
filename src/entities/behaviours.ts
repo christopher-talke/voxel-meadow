@@ -1,5 +1,6 @@
 import type { Dog } from './dog';
 import * as THREE from 'three';
+import { state } from '../core/state';
 import { V2, V3, clamp, headingTo, lerp, rand, rr, smooth, wrapA } from '../core/util';
 import { scene } from '../render/stage';
 import { applyBlobbyToonMaterial } from '../render/blobbyToonMaterial';
@@ -92,7 +93,7 @@ function paddle(d, dt, tgt, sp) {
   const f = d.fwd, nx = d.pos.x + f.x * sp * dt, nz = d.pos.y + f.y * sp * dt;
   if (waterOK(nx, nz)) d.pos.set(nx, nz);
   d.fakeV = sp * 0.8 * K; d.v = 0; d.poseName = 'swim';
-  d.ovY = WATER_Y - 5.6 + Math.sin(d.phase * 0.9 + performance.now() * 0.0022) * 0.5;
+  d.ovY = WATER_Y - 5.6 + Math.sin(d.phase * 0.9 + state.T * 2.2) * 0.5;
   if (rand() < dt * 1.5) puff(dropTex, V3.set(d.pos.x + rr(-3, 3), WATER_Y + 1, d.pos.y + rr(-3, 3)).clone(), 0.7, 0.7, rr(2, 4), 0, rr(-3, 3), rr(-3, 3), 12);
 }
 

@@ -100,6 +100,13 @@ export function stepWorld(dt) {
 }
 function frame(now) {
   adaptRes(now - last);
+  // test hook: an init script can hold the sim at its start state so MEADOW.trace() runs from a known point
+  if ((window as any).__MEADOW_PAUSE) {
+    last = now; controls.update(); camClipBegin(1 / 60); sky.position.copy(camera.position);
+    cutU.uFocus.value.copy(controls.target); cutU.uCam.value.copy(camera.position);
+    for (const c of CLOTHS) c.sync();
+    renderer.render(scene, camera); camClipEnd(); requestAnimationFrame(frame); return;
+  }
   const dt = Math.max(0.001, Math.min(0.05, (now - last) / 1000)); last = Math.max(last, now); state.T += dt;
   starU.uTime.value = state.T; fireU.uTime.value = state.T;
   stepWorld(dt);
