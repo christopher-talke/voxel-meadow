@@ -6,12 +6,13 @@ import {
   rand,
   reduceMotion,
   rr,
+  seeded,
   smooth,
   store,
 } from "../core/util";
 import { camera, fog, hemi, scene, skyU, starU, sun } from "../render/stage";
 import { SH, WATER_Y, colXZ, roofTop } from "../world/layout";
-import { cloudMat, fireU, groundTop, vcMat, waterMat } from "../world/mesh";
+import { cloudMat, clouds, fireU, groundTop, vcMat, waterMat } from "../world/mesh";
 import { dogs } from "../entities/registry";
 import { hooks } from "../core/hooks";
 
@@ -355,10 +356,15 @@ moonDisc.scale.setScalar(240);
 moonDisc.renderOrder = -1;
 scene.add(moonDisc);
 
-// rain: streaks that fall around the camera's focus, with ripples on the lake
-const RAIN_N = 1600,
+// rain, in three layers so it reads as weather over the whole world from any distance:
+//  near: streaks in a box around the view whose size follows the camera's distance, so they still read from the island orbit
+//  far: two fog-tinted curtains wrapped round the camera, so distant rain billows into the haze instead of stopping at a box edge
+//  shafts: soft sheets of rain hanging under the clouds, out over the horizon
+// Rain is pure decoration, so it draws from its own random stream and never shifts the animals' choices.
+const R = seeded(4417);
+const RAIN_N = 2400,
   rainPos = new Float32Array(RAIN_N * 6),
-  rainP: any[] = [];
+  rainP: { u: number; w: number; y: number; v: number }[] = [];
 const rainGeo = new THREE.BufferGeometry();
 rainGeo.setAttribute("position", new THREE.BufferAttribute(rainPos, 3));
 const rainMat = new THREE.LineBasicMaterial({
@@ -370,13 +376,55 @@ const rainMat = new THREE.LineBasicMaterial({
 const rainMesh = new THREE.LineSegments(rainGeo, rainMat);
 rainMesh.frustumCulled = false;
 scene.add(rainMesh);
+// positions are kept in box units (u, w across, y up from 0 to 1) so the box can grow and shrink without reseeding
 for (let i = 0; i < RAIN_N; i++)
-  rainP.push({
-    x: rr(-170, 170),
-    y: rr(0, 160),
-    z: rr(-170, 170),
-    v: rr(110, 150),
+  rainP.push({ u: R.rr(-1, 1), w: R.rr(-1, 1), y: R.rand(), v: R.rr(0.85, 1.15) });
+const rainBox = { c: new THREE.Vector3(), ext: 170, h: 170 };
+// the old rain seeded 1,600 drops from the shared stream; burn the same draws so fish and animals start where they always have
+for (let i = 0; i < 1600 * 4; i++) rand();
+
+// curtains and shafts share one shader: soft falling streaks, tinted toward the fog, fading at top and bottom
+const veilU = {
+  uTime: { value: 0 },
+  uRain: { value: 0 },
+  uCol: { value: new THREE.Color(0x9aa7b4) },
+  uFlash: { value: 0 },
+};
+const veilMat = (alpha: number, cols: number) =>
+  new THREE.ShaderMaterial({
+    uniforms: { ...veilU, uAlpha: { value: alpha }, uCols: { value: cols } },
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    fog: false,
+    vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `uniform float uTime, uRain, uAlpha, uCols, uFlash; uniform vec3 uCol; varying vec2 vUv;
+      float h(float n){ return fract(sin(n * 91.345) * 47453.21); }
+      void main(){
+        float x = vUv.x * uCols, c = floor(x), f = fract(x);
+        float sp = 0.55 + 0.5 * h(c), ph = h(c + 7.0);
+        float y = fract(vUv.y * (2.0 + 2.0 * h(c + 3.0)) + uTime * sp + ph);
+        float streak = smoothstep(0.5, 0.0, abs(f - 0.5) * 2.2) * smoothstep(0.0, 0.35, y) * smoothstep(1.0, 0.6, y);
+        float body = 0.55 + 0.45 * streak;
+        float fade = smoothstep(0.0, 0.25, vUv.y) * smoothstep(1.0, 0.7, vUv.y);
+        float a = uRain * uAlpha * body * fade;
+        if (a < 0.003) discard;
+        gl_FragColor = vec4(mix(uCol, vec3(0.92, 0.95, 1.0), uFlash * 0.7), a);
+      }`,
   });
+const curtains: THREE.Mesh[] = [];
+for (const [r, a, n] of [[460, 0.2, 260], [1050, 0.32, 420]] as const) {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 900, 48, 1, true), veilMat(a, n));
+  m.frustumCulled = false; m.renderOrder = 2; m.visible = false; scene.add(m); curtains.push(m);
+}
+const shaftGeo = new THREE.PlaneGeometry(1, 1).translate(0, -0.5, 0);
+const shafts: THREE.Mesh[] = [];
+for (const c of clouds) {
+  const m = new THREE.Mesh(shaftGeo, veilMat(0.42, 14));
+  m.scale.set(R.rr(60, 110), 1, 1); m.position.set(R.rr(-12, 12), -8, R.rr(-8, 8)); m.visible = false;
+  c.add(m); shafts.push(m);
+}
+
 const ripGeo = new THREE.RingGeometry(0.75, 1, 20);
 ripGeo.rotateX(-Math.PI / 2);
 const ripples: any[] = [];
@@ -394,42 +442,59 @@ for (let i = 0; i < 46; i++) {
   scene.add(m);
   ripples.push({ m, t: 1, life: 1 });
 }
+// every open-water cell on the island, so ripples land across the whole lake rather than near the camera's focus
+const OPEN_WATER: { x: number; z: number; y: number }[] = [];
+for (let i = -90; i <= 90; i++) for (let j = -90; j <= 90; j++) {
+  const c = colXZ(i * 4, j * 4);
+  if (c && (c.type === "deep" || c.type === "shallow") && !c.jetty) OPEN_WATER.push({ x: i * 4, z: j * 4, y: (c.wl !== null ? c.wl : WATER_Y) + 0.15 });
+}
+const _toCam = new THREE.Vector3();
 function rainUpdate(dt, focus) {
-  const on = WX.rain > 0.02 && !reduceMotion;
-  rainMesh.visible = on;
-  rainMat.opacity = 0.7 * Math.min(1, WX.rain * 1.4);
-  if (!on) {
+  const on = WX.rain > 0.02;
+  veilU.uRain.value = Math.min(1, WX.rain * 1.3);
+  veilU.uFlash.value = env.flash;
+  veilU.uCol.value.copy(fog.color).multiplyScalar(0.8).lerp(tmpC.setRGB(0.5, 0.55, 0.62), 0.25);   // rain is darker than the haze behind it
+  if (!reduceMotion) veilU.uTime.value += dt * 0.9;
+  for (const m of curtains) { m.visible = on; m.position.set(camera.position.x, 200, camera.position.z); }
+  for (const m of shafts) {
+    m.visible = on && WX.cover > 0.6;
+    if (!m.visible) continue;
+    const g = m.parent!; m.scale.y = g.position.y + 120;
+    m.rotation.y = Math.atan2(camera.position.x - g.position.x, camera.position.z - g.position.z);
+  }
+  // reduced motion: the curtains stay as a still veil and nothing falls
+  rainMesh.visible = on && !reduceMotion;
+  if (!rainMesh.visible) {
     for (const r of ripples) r.m.visible = false;
     return;
   }
+  // the box sits between camera and focus and grows with distance, keeping streaks a readable size on screen
+  const dist = camera.position.distanceTo(focus), s = clamp(dist / 320, 1, 4.2);
+  rainBox.ext = 170 * s; rainBox.h = 170 * s;
+  _toCam.copy(camera.position).sub(focus);
+  rainBox.c.copy(focus).addScaledVector(_toCam, clamp(0.35 - 60 / Math.max(dist, 1), 0, 0.35));
+  rainMat.opacity = 0.7 * Math.min(1, WX.rain * 1.4);
   const n = Math.floor(RAIN_N * Math.min(1, WX.rain)),
     sx = WX.wind * 26,
-    len = 4.2;
+    len = 4.2 * s,
+    E = rainBox.ext, Hh = rainBox.h, base = rainBox.c.y - 40 * s;
   rainGeo.setDrawRange(0, n * 2);
   for (let i = 0; i < n; i++) {
     const p = rainP[i];
-    p.y -= p.v * dt;
-    p.x += sx * dt;
-    const wx = focus.x + p.x,
-      wz = focus.z + p.z;
-    if (
-      p.y < groundTop(wx, wz) - focus.y + 1 ||
-      p.y < -60 ||
-      (underRoof(wx, wz) && p.y + focus.y < roofTop(wx))
-    ) {
-      p.y = rr(110, 170);
-      p.x = rr(-170, 170);
-      p.z = rr(-170, 170);
+    p.y -= (130 * p.v * dt) / Hh;
+    p.u += (sx * dt) / E;
+    if (p.u > 1) p.u -= 2;
+    const X = rainBox.c.x + p.u * E, Z = rainBox.c.z + p.w * E;
+    let Y = base + p.y * Hh;
+    if (p.y < 0 || Y < groundTop(X, Z) + 1 || (underRoof(X, Z) && Y < roofTop(X))) {
+      p.y = R.rr(0.7, 1); p.u = R.rr(-1, 1); p.w = R.rr(-1, 1);
+      continue;
     }
-    if (p.x > 170) p.x -= 340;
-    const o = i * 6,
-      X = focus.x + p.x,
-      Y = focus.y + p.y,
-      Z = focus.z + p.z;
+    const o = i * 6;
     rainPos[o] = X;
     rainPos[o + 1] = Y;
     rainPos[o + 2] = Z;
-    rainPos[o + 3] = X - ((sx * len) / p.v) * 4;
+    rainPos[o + 3] = X - ((sx * len) / (130 * p.v)) * 4;
     rainPos[o + 4] = Y + len;
     rainPos[o + 5] = Z;
   }
@@ -438,16 +503,12 @@ function rainUpdate(dt, focus) {
     r.t += dt / r.life;
     if (r.t >= 1) {
       r.m.visible = false;
-      if (rand() < WX.rain * 0.6) {
-        const x = focus.x + rr(-150, 150),
-          z = focus.z + rr(-150, 150),
-          c = colXZ(x, z);
-        if (c && (c.type === "deep" || c.type === "shallow") && !c.jetty) {
-          r.m.position.set(x, (c.wl !== null ? c.wl : WATER_Y) + 0.15, z);
-          r.t = 0;
-          r.life = rr(0.6, 1.1);
-          r.m.visible = true;
-        }
+      if (OPEN_WATER.length && R.rand() < WX.rain * 0.6) {
+        const w = OPEN_WATER[Math.floor(R.rand() * OPEN_WATER.length)];
+        r.m.position.set(w.x + R.rr(-2, 2), w.y, w.z + R.rr(-2, 2));
+        r.t = 0;
+        r.life = R.rr(0.6, 1.1);
+        r.m.visible = true;
       }
       continue;
     }
@@ -551,7 +612,7 @@ export function updateEnv(dt, focus) {
   hemi.groundColor.copy(env.hg);
   hemi.intensity = env.hI;
   waterMat.color.copy(env.water).lerp(tmpC.setHex(0x6a7a86), WX.cover * 0.4);
-  cloudMat.emissive.copy(env.cloudE);
+  cloudMat.emissive.copy(env.cloudE).lerp(tmpC.setRGB(0.9, 0.92, 1), env.flash * 0.75);
   cloudMat.color.setRGB(
     1 - 0.45 * WX.cover,
     1 - 0.43 * WX.cover,

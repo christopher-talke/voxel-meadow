@@ -1,6 +1,6 @@
 """Capture a regression baseline: world fingerprint, behaviour trace, render cost and fixed-camera stills.
 
-usage (from test/): ../.venv/bin/python baseline.py <label> [--no-shots] [--trace-sec N]
+usage (from test/): ../.venv/bin/python baseline.py <label> [--no-shots] [--trace-sec N] [--only day,rain]
 writes test/baseline/<label>/. Compare two labels with compare.py.
 """
 from common import DIST, CHROME
@@ -9,7 +9,8 @@ from playwright.async_api import async_playwright
 
 label = sys.argv[1]
 SHOTS = '--no-shots' not in sys.argv
-TRACE = int(sys.argv[sys.argv.index('--trace-sec') + 1]) if '--trace-sec' in sys.argv else 600
+ONLY = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
+TRACE = 0 if ONLY else int(sys.argv[sys.argv.index('--trace-sec') + 1]) if '--trace-sec' in sys.argv else 600
 OUT = pathlib.Path(__file__).parent / 'baseline' / label
 OUT.mkdir(parents=True, exist_ok=True)
 W, H = 1280, 720
@@ -53,12 +54,13 @@ async def main():
     async with async_playwright() as p:
         b, pg, errs = await page(p)
         res['fingerprint'] = await pg.evaluate('MEADOW.fingerprint()')
-        res['trace'] = await pg.evaluate(f'MEADOW.trace({TRACE})')
+        res['trace'] = await pg.evaluate(f'MEADOW.trace({TRACE})') if TRACE else []
         res['errors'] = errs
         await b.close()
         if SHOTS:
             res['perf'] = {}
             for name, js, settle in SCEN:
+                if ONLY and name not in ONLY: continue
                 b, pg, errs = await page(p)
                 await pg.evaluate(js); await pg.evaluate(PARK); await pg.evaluate(f'MEADOW.advance({settle})')
                 views = await pg.evaluate(VIEWS_JS)
