@@ -164,13 +164,13 @@ for (let i = JETTY.i0; i <= JETTY.i1; i++) for (let j = JETTY.j0; j <= JETTY.j1;
 box(JETTY.i1 * B + 1.2, 8, JETTY.j0 * B, 2.4, 9, 2.4, 0x5f4330);
 box(JETTY.i1 * B + 1.2, 8, JETTY.j1 * B, 2.4, 9, 2.4, 0x5f4330);
 
-// lily pads, reeds
+// the old scattered lily pads now live in world/pond.ts; this loop still draws the same random numbers so the rest of the layout stays put
 for (let n = 0; n < 12; n++) {
   const a = rr(0, 6.283), d = rr(2, 13), i = Math.round(LAKE.i + Math.cos(a) * d), j = Math.round(LAKE.j + Math.sin(a) * d), c = colAt(i, j);
   if (!c || c.type !== 'deep' || c.jetty) continue;
-  box(i * B + rr(-1, 1), -0.75, j * B + rr(-1, 1), 5.5, 0.35, 5.5, jit(0x6fae4f, 0.05));
-  if (rand() < 0.4) box(i * B + 1, -0.1, j * B, 1.6, 1, 1.6, 0xf4a6c0);
+  rr(-1, 1); rr(-1, 1); jit(0x6fae4f, 0.05); rand();
 }
+// reeds
 for (const c of cols) {
   if (!c || !(c.type === 'sand' || c.type === 'grass') || c.bridge || c.jetty || G.walk[idxOf(c.i, c.j)] === 0) continue;
   let wet = false; for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const n = colAt(c.i + di, c.j + dj); if (n && isWaterCol(n) && !n.bridge && !n.jetty) wet = true; }

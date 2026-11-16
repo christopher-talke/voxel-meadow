@@ -4,6 +4,11 @@ import { clamp, lineDist, noise, smooth } from '../core/util';
 export const B = 4, R = 90, N = 2 * R + 1;
 export const K = 0.48;   // dog voxel size in world units: a dog is ~22 long and ~12 to the shoulder
 export const LAKE = { i: 45, j: 40, r: 22 };
+// the lake spills out through a short channel on its far side and pours off the island edge
+const SPILL_U = (() => { const l = Math.hypot(LAKE.i, LAKE.j); return { x: LAKE.i / l, z: LAKE.j / l }; })();
+const SPILL_HW = 1.6;   // half width of the channel, in blocks
+const spillT = (i, j) => (i - LAKE.i) * SPILL_U.x + (j - LAKE.j) * SPILL_U.z;
+const spillPerp = (i, j) => Math.abs((i - LAKE.i) * SPILL_U.z - (j - LAKE.j) * SPILL_U.x);
 export const HILL = { i: 6, j: -56 };
 export const WOODS = { i: -55, j: 10, r: 26 };
 export const FIELD = { i: 58, j: -18, r: 20 };
@@ -82,6 +87,7 @@ for (let i = -R; i <= R; i++) for (let j = -R; j <= R; j++) {
     if (ld > lr - (2.5 + 5 * toHome)) { c.top = -1; c.type = 'shallow'; } else { c.top = -3; c.type = 'deep'; }
     c.wl = -1;
   } else if (ld < lr + 5) { c.top = 0; c.base = 0; c.type = 'sand'; }
+  if ((c.type === 'grass' || c.type === 'sand') && spillT(i, j) > LAKE.r - 4 && spillPerp(i, j) < SPILL_HW) { c.top = -1; c.base = Math.min(c.base, 0); c.type = 'creek'; c.spill = true; c.wl = -1; }
   if ((c.type === 'grass' || c.type === 'sand') && lineDist(i, j, CREEK) < 1.7) { c.top = c.base - 1; c.type = 'creek'; c.wl = c.top * B + 2.6; }
   let onPath = false; for (const p of PATHS) if (lineDist(i, j, p) < 1.5) onPath = true;
   if (onPath) { if (c.type === 'grass') c.type = 'path'; else if (c.type === 'creek') c.bridge = true; }
@@ -91,6 +97,13 @@ for (let i = -R; i <= R; i++) for (let j = -R; j <= R; j++) {
   cols[idxOf(i, j)] = c;
 }
 export const colAt = (i, j) => inGrid(i, j) ? cols[idxOf(i, j)] : null;
+/** Where the lake pours off the island: lip point on the water (world units), outward direction, channel width. */
+export const SPILL = (() => {
+  let tMax = 0;
+  for (const c of cols) if (c && c.spill && spillPerp(c.i, c.j) < 0.9) tMax = Math.max(tMax, spillT(c.i, c.j));
+  const t = tMax + 0.5;
+  return { x: (LAKE.i + SPILL_U.x * t) * B, z: (LAKE.j + SPILL_U.z * t) * B, nx: SPILL_U.x, nz: SPILL_U.z, w: SPILL_HW * 2 * B, y: -1 };
+})();
 export const colXZ = (x, z) => colAt(Math.round(x / B), Math.round(z / B));
 export const isWaterCol = c => c && (c.type === 'shallow' || c.type === 'deep' || c.type === 'creek');
 

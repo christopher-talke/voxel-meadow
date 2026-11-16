@@ -3,8 +3,9 @@ import { state } from '../core/state';
 import { V2, clamp, lerp, rand, store } from '../core/util';
 import { scene } from '../render/stage';
 import { BEDS, BL, GRAV, K, NOSE } from '../world/layout';
-import { cats, dogs } from './registry';
+import { dogs, ents } from './registry';
 import { groundAtXZ } from './behaviours';
+import { applyBlobbyToonMaterial } from '../render/blobbyToonMaterial';
 
 // ================= cloth: the picnic blanket and the two bed blankets =================
 function clothTex(kind: string) {
@@ -27,6 +28,8 @@ function clothTex(kind: string) {
 }
 const clothGround = (x, z) => groundAtXZ(x, z) + 0.3;
 export class Cloth {
+  /** Frames the cloth has been perfectly still; once settled with nobody near, it stops simulating until disturbed. */
+  rest = 0; cx = 0; cz = 0; rad = 0;
   C: number[];
   N: number;
   anim: any;
@@ -68,7 +71,9 @@ export class Cloth {
     this.p.set(this.h); this.q.set(this.h);
     const geo = new THREE.PlaneGeometry(this.w, this.d, nx - 1, nz - 1);
     this.geo = geo;
-    this.mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: clothTex(this.tex), side: THREE.DoubleSide }));
+    const mat = new THREE.MeshLambertMaterial({ map: clothTex(this.tex), side: THREE.DoubleSide });
+    applyBlobbyToonMaterial(mat, { top: 0xffffff, bottom: 0xd8d2c8, gloss: 0.12, rim: 0.03, ambient: 0.52 });
+    this.mesh = new THREE.Mesh(geo, mat);
     this.mesh.castShadow = true; this.mesh.receiveShadow = true; this.mesh.frustumCulled = false; this.mesh.userData.cloth = this;
     scene.add(this.mesh); this.sync();
   }
@@ -84,7 +89,17 @@ export class Cloth {
     return clamp(m / this.N / (Math.min(this.w, this.d) * 0.22), 0, 1);
   }
   shakeOut() { this.anim = { t: 0, from: Float32Array.from(this.p) }; this.grabs.clear(); }
+  /** Is any animal close enough to touch this cloth? */
+  animalNear() { for (const e of ents) { const dx = e.pos.x - this.cx, dz = e.pos.y - this.cz; if (dx * dx + dz * dz < (this.rad + 26) ** 2) return true; } return false; }
   step(dt) {
+    const p = this.p, q = this.q, N = this.N;
+    if (!this.anim && !this.grabs.size && this.rest >= 30 && !this.animalNear()) return;
+    this.stepSim(dt);
+    let mv = 0; for (let i = 0; i < N * 3; i++) { const d = Math.abs(p[i] - q[i]); if (d > mv) mv = d; }
+    if (this.anim || this.grabs.size || mv > 2e-3) this.rest = 0;
+    else if (++this.rest === 30) { const c = this.centroid(); this.cx = c.x; this.cz = c.y; let r = 0; for (let k = 0; k < N; k++) r = Math.max(r, Math.hypot(p[k * 3] - c.x, p[k * 3 + 2] - c.y)); this.rad = r; }
+  }
+  stepSim(dt) {
     const p = this.p, q = this.q, N = this.N;
     if (this.anim) {
       const a = this.anim; a.t += dt / 1.1; const e = a.t < 1 ? 1 - Math.pow(1 - a.t, 3) : 1;
@@ -127,17 +142,19 @@ export class Cloth {
     }
   }
   sync() {
+    if (this.rest > 31) return;   // asleep: nothing has moved since the last upload
     const pos = this.geo.attributes.position;
     for (let k = 0; k < this.N; k++) pos.setXYZ(k, this.p[k * 3], this.p[k * 3 + 1] + 0.15, this.p[k * 3 + 2]);
     pos.needsUpdate = true; this.geo.computeVertexNormals(); this.geo.computeBoundingSphere();
   }
 }
 // dogs scuff, drag, dig and press the cloth
+const LYING = new Set(['lie', 'sleep', 'roll', 'crawl']);
 function clothDogs(cl, dt) {
   const p = cl.p, q = cl.q;
-  for (const d of dogs.concat(cats)) {
+  for (const d of ents) {
     const f = d.fwd, mvx = d.mv ? d.mv.x : 0, mvz = d.mv ? d.mv.y : 0, moving = mvx * mvx + mvz * mvz > 1e-4;
-    const lying = ['lie', 'sleep', 'roll', 'crawl'].includes(d.poseName);
+    const lying = LYING.has(d.poseName);
     const fx = d.fx;
     const grip = d.poseName === 'crawl' ? 0.75 : d.v > 40 * K ? 0.55 : 0.18;
     const nose = V2(d.pos.x + f.x * NOSE, d.pos.y + f.y * NOSE), paws = V2(d.pos.x + f.x * 9, d.pos.y + f.y * 9);

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { $, V3, clamp, rand, rr, smooth, store } from '../core/util';
 import { camera, focus } from '../render/stage';
-import { B, LAKE } from '../world/layout';
+import { B, LAKE, SPILL } from '../world/layout';
 import { WX, env, underRoof } from '../sim/sky';
 import { ents } from '../entities/registry';
 import { showHint } from '../ui/hint';
@@ -38,6 +38,7 @@ function sndInit() {
   SND.loops.rain = loop(SND.white, [bq('highpass', 900), bq('lowpass', 7000)], 0);
   SND.loops.roofRain = loop(SND.white, [bq('bandpass', 2400, 1.4)], 0);
   SND.loops.water = loop(SND.brown, [bq('lowpass', 520)], 0);
+  SND.loops.falls = loop(SND.brown, [bq('lowpass', 900), bq('highpass', 120)], 0);
   SND.loops.leaves = loop(SND.white, [bq('bandpass', 5200, 0.9)], 0);
   return C;
 }
@@ -74,6 +75,8 @@ export const SFX = {
   snore(d) { const out = sndOut(entPos(d), 0.18), t = sndNow(); noiseHit(out, t, 1.1, 'lowpass', 260, 2, 0.5, true); },
   lap(d) { const out = sndOut(entPos(d), 0.25), t = sndNow(); for (let k = 0; k < 6; k++) noiseHit(out, t + k * 0.17, 0.05, 'bandpass', 1800, 3, 0.4); },
   shake(d) { const out = sndOut(entPos(d), 0.4), t = sndNow(); noiseHit(out, t, 0.9, 'bandpass', 3000, 0.8, 0.45); for (let k = 0; k < 8; k++) noiseHit(out, t + k * 0.1, 0.06, 'highpass', 4000, 0.7, 0.3); },
+  /** A frog's croak from a point in the world (two quick, throaty pulses). */
+  croak(p: THREE.Vector3, vol = 0.25) { const out = sndOut(p, vol, SND.amb), t0 = sndNow(), f = rr(170, 215); for (let k = 0; k < 2; k++) tone(out, 'square', f, f * 0.78, t0 + k * 0.16, 0.08, 0.25); },
   splash(d, big?) { const out = sndOut(entPos(d), big ? 0.8 : 0.4), t = sndNow(); noiseHit(out, t, big ? 0.9 : 0.4, 'lowpass', 1400, 0.8, 0.7, false); noiseHit(out, t + 0.05, big ? 1.2 : 0.5, 'highpass', 2500, 0.6, 0.35); },
   paddle(d) { const out = sndOut(entPos(d), 0.18), t = sndNow(); noiseHit(out, t, 0.18, 'bandpass', 900, 1.5, 0.4, true); },
   meow(d, happy?) { const out = sndOut(entPos(d), 0.42), v = VOICE[d.name] || 1, t = sndNow(), C = SND.ctx!;
@@ -130,6 +133,7 @@ export function sndUpdate(dt) {
   set(SND.loops.roofRain, roof ? 0.22 * WX.rain : 0);
   const dl = Math.hypot(cp.x - LAKE.i * B, cp.z - LAKE.j * B) - LAKE.r * B;
   set(SND.loops.water, 0.13 * clamp(1 - dl / 200, 0, 1) * (0.7 + 0.3 * Math.sin(SND.t * 0.9)), 0.5);
+  set(SND.loops.falls, 0.3 * clamp(1 - Math.hypot(cp.x - SPILL.x, cp.y - SPILL.y, cp.z - SPILL.z) / 380, 0, 1) ** 1.5, 0.6);
   // birds by day, crickets and frogs at night, kookaburras at the edges of the day
   const day = SND_DAY(), night = (1 - smooth(-8, 0, env.el)) * (1 - WX.rain);
   const tick = (k, gap, fn) => { SND.timers[k] = (SND.timers[k] === undefined ? rr(1, gap) : SND.timers[k]) - dt; if (SND.timers[k] <= 0) { SND.timers[k] = rr(gap * 0.5, gap * 1.5); fn(); } };
@@ -137,7 +141,6 @@ export function sndUpdate(dt) {
   if (env.el > -6 && env.el < 10 && WX.rain < 0.3) tick('kooka', 90, () => birdCall('kooka'));
   if (night > 0.3) {
     tick('cricket', 0.9, () => { const a = rand() * 6.283, p = new THREE.Vector3(cp.x + Math.cos(a) * 60, 4, cp.z + Math.sin(a) * 60), out = sndOut(p, 0.09 * night, SND.amb), t0 = sndNow(); for (let k = 0; k < 3; k++) tone(out, 'sine', 4300, 4300, t0 + k * 0.07, 0.035, 0.4, 0.004); });
-    if (dl < 160) tick('frog', 4, () => { const p = new THREE.Vector3(LAKE.i * B + rr(-60, 60), 0, LAKE.j * B + rr(-60, 60)), out = sndOut(p, 0.25 * night, SND.amb), t0 = sndNow(); for (let k = 0; k < 2; k++) tone(out, 'square', 190, 150, t0 + k * 0.16, 0.08, 0.25); });
   }
   // the animals mutter now and then on their own
   for (const d of ents) {

@@ -9,16 +9,22 @@ import { SND, tgSound } from '../audio/sound';
 import { timeText } from '../world/clock';
 import { setCamMode } from '../camera/camera';
 import { followDog } from './interact';
+import { isSmoothToonRenderer, setSmoothToonRenderer } from '../render/renderFlags';
+
+const WALLPAPER_BUILD = import.meta.env.PROD;
 
 // the settings menu: one button, a tidy panel, and it all fades away when you leave it alone
 const menuEl = $('menu'), btnMenu = $('btn-menu'), skyNow = $('skynow');
 const selCam = $<HTMLSelectElement>('sel-cam'), selTime = $<HTMLSelectElement>('sel-time'), selWx = $<HTMLSelectElement>('sel-wx');
-const tgAuto = $<HTMLInputElement>('tg-auto'), tgSee = $<HTMLInputElement>('tg-see');
+const tgAuto = $<HTMLInputElement>('tg-auto'), tgSee = $<HTMLInputElement>('tg-see'), tgTags = $<HTMLInputElement>('tg-tags'), tagsEl = $('tags');
+const tgSmooth = $<HTMLInputElement>('tg-smooth');
 const WXNAME = { clear: 'clear', cloudy: 'cloudy', windy: 'windy', rain: 'raining', storm: 'stormy' };
 let menuT = 0, idleT = 0;
+if (WALLPAPER_BUILD) document.documentElement.setAttribute('data-wallpaper', '1');
 export function syncMenu() {
   selCam.value = String(state.camMode); selTime.value = state.timeMode; selWx.value = WX.mode;
-  tgAuto.checked = state.autoCam; tgSee.checked = state.seeThrough; tgSound.checked = SND.on;
+  tgAuto.checked = state.autoCam; tgSee.checked = state.seeThrough; tgTags.checked = state.showTags; tgSound.checked = SND.on;
+  tgSmooth.checked = isSmoothToonRenderer();
   skyNow.textContent = timeText() + ' in the meadow, ' + WXNAME[WX.kind];
 }
 hooks.syncMenu = syncMenu;
@@ -31,6 +37,9 @@ selTime.addEventListener('change', () => { const v = selTime.value; if (v === 'l
 selWx.addEventListener('change', () => { const v = selWx.value; WX.mode = v; store.set('meadow-wx', v); if (v === 'auto') WX.left = rr(120, 300); selWx.blur(); syncMenu(); });
 tgAuto.addEventListener('change', () => { state.autoCam = tgAuto.checked; store.set('meadow-autocam', state.autoCam ? '1' : '0'); state.autoT = 99; });
 tgSee.addEventListener('change', () => { state.seeThrough = tgSee.checked; store.set('meadow-see', state.seeThrough ? '1' : '0'); });
+tgTags.addEventListener('change', () => { state.showTags = tgTags.checked; store.set('meadow-tags', state.showTags ? '1' : '0'); tagsEl.hidden = !state.showTags; shown.fill(''); });
+tgSmooth.addEventListener('change', () => { setSmoothToonRenderer(tgSmooth.checked); });
+tagsEl.hidden = !state.showTags;
 // the menu closes itself after a quiet spell, and the button fades back until you move or touch
 const appEl = $('app');
 for (const ev of ['pointermove', 'pointerdown', 'keydown', 'wheel']) addEventListener(ev, () => { idleT = 0; appEl.classList.remove('idle'); }, { passive: true });
@@ -48,6 +57,7 @@ const shown = ['', '', '', '', ''];
 ents.forEach(d => { d.talkT = 0; });
 const tagPos = [0, 1, 2, 3, 4].map(() => ({ x: 0, y: 0, s: 1 }));
 export function updateTags(dt) {
+  if (!state.showTags) { for (const d of ents) d.talkT -= dt; return; }
   const w = stage.clientWidth, h = stage.clientHeight;
   ents.forEach((d, i) => {
     const txt = d.label();

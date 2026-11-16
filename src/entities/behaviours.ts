@@ -2,11 +2,15 @@ import type { Dog } from './dog';
 import * as THREE from 'three';
 import { V2, V3, clamp, headingTo, lerp, rand, rr, smooth, wrapA } from '../core/util';
 import { scene } from '../render/stage';
+import { applyBlobbyToonMaterial } from '../render/blobbyToonMaterial';
+import { attachEntityOutline } from '../render/entityOutline';
 import { B, FIELD, G, JETTY, K, WATER_Y, WOODS, bedTop, cellIdx, colAt, colXZ, deckH, gyAt, idxOf, roofTop } from '../world/layout';
 import { LOOK, TREES } from '../world/decor';
 import { todKey } from '../sim/sky';
 import { dropTex, puff } from '../fx/sprites';
 import { SHALLOWS, bankNear, cellPt, nearestWalk, randLand } from '../nav/path';
+import { PAD_CHAIN, PAD_END, PAD_START, padY, type Pad } from '../world/pond';
+import { WX } from '../sim/sky';
 
 // ================= dogs =================
 const BASE = { lift: 0, pitch: 0, roll: 0, hp: 0, hr: 0, hyb: 0, nkx: 0, nky: 0, tr: 0, tc: 0, fl: 0, fr: 0, bl: 0, br: 0, wag: 0.22, wagSpd: 6, rate: 5 };
@@ -53,7 +57,7 @@ export const PERSONA: Record<string, any> = {
     w: { wander: 2, sniff: 2.6, sit: 2.2, sunbathe: 2.6, zoomies: 0.9, visit: 1, adventure: 1.5, hello: 0, nap: 1.3, ball: 0, tummy: 0, rub: 0 },
     labels: { wander: 'Pottering about', sniff: 'Taking her time sniffing', sit: 'Sitting quietly', sun: 'Soaking up the sun' } },
   // Bobby: senior, calm and unhurried. Placeholder temperament, to be refined.
-  bobby: { swimP: 0.12, size: [0.92, 0.75, 1.08], speed: { walk: 0.62, sniffwalk: 0.75, trot: 0.75, run: 1, wade: 0.9, dribble: 0.8 }, stride: 1.3, bounce: 0.4, turn: 0.6, poseRate: 0.55,
+  bobby: { swimP: 0.12, size: [0.9, 0.71, 1.1], speed: { walk: 0.62, sniffwalk: 0.75, trot: 0.75, run: 1, wade: 0.9, dribble: 0.8 }, stride: 1.3, bounce: 0.4, turn: 0.6, poseRate: 0.55,
     look: [3.5, 8], lookRate: 1.8, tilt: 0.08, wag: 0.9, wagSpd: 0.5, tail: -0.1, idle: 1.8, drain: 1.3, gentle: true, calm: true, lie: 'lieFlat', pro: 'his', tidy: 2.2, moody: true, curious: 0.25,
     w: { wander: 1.8, sniff: 3, sit: 2.4, sunbathe: 3, zoomies: 0, visit: 0.7, adventure: 0.4, hello: 0.5, nap: 2.4, ball: 0, tummy: 0, rub: 0, grump: 1.6 },
     labels: { wander: 'Pottering about', sniff: 'Having a good sniff', sit: 'Sitting quietly', sun: 'Soaking up the sun' } },
@@ -61,11 +65,12 @@ export const PERSONA: Record<string, any> = {
 const CATP = Object.assign({}, PERSONA.bobby, {
   cat: true, size: [0.68, 0.54, 0.68], tidy: 0, moody: false, lie: 'catLoaf', pro: 'their', stride: 1.8, bounce: 0.3, poseRate: 0.7, wag: 0.25, wagSpd: 0.8, tail: 0, gentle: true, idle: 1.3, drain: 1.0,
   speed: { walk: 0.9, sniffwalk: 0.9, trot: 0.85, run: 1, wade: 0.8, dribble: 1 },
-  w: { wander: 1.6, sniff: 2, sit: 3, sunbathe: 3.5, zoomies: 0, visit: 0.4, adventure: 0, hello: 0, nap: 3, ball: 0, tummy: 0, rub: 0, grump: 0, climb: 1.6, perch: 1.6, fish: 1.3, ambush: 2.2 },
+  w: { wander: 1.6, sniff: 2, sit: 3, sunbathe: 3.5, zoomies: 0, visit: 0.4, adventure: 0, hello: 0, nap: 3, ball: 0, tummy: 0, rub: 0, grump: 0, climb: 1.6, perch: 1.6, fish: 1.3, ambush: 2.2, lily: 2.2 },
   labels: { wander: 'Prowling about', sniff: 'Investigating something', sit: 'Sitting like a statue', sun: 'Sunning themselves' } });
 PERSONA.cat1 = Object.assign({}, CATP, { swish: 0.55 }); PERSONA.cat2 = Object.assign({}, CATP, { swish: 1.15, labels: { wander: 'Strolling about', sniff: 'Investigating something', sit: 'Sitting like a statue', sun: 'Sunning themselves' } });
 export const SPEED = { dribble: 215 * K, crawl: 9 * K, walk: 30 * K, sniffwalk: 13 * K, trot: 50 * K, run: 105 * K, wade: 16 * K };
 export const dogMat = new THREE.MeshLambertMaterial();
+applyBlobbyToonMaterial(dogMat, { top: 0xf7c6aa, bottom: 0xc58f6a, gloss: 0.28, rim: 0.11, ambient: 0.44 });
 export const dogMeshes: THREE.InstancedMesh[] = [];
 
 
@@ -96,13 +101,17 @@ export const FISH: any[] = [];
 export let mkFish: () => any = () => new THREE.Group();
 {
   const bodyM = new THREE.MeshLambertMaterial({ color: 0xff8f3a }), tailM = new THREE.MeshLambertMaterial({ color: 0xf4c26b });
+  applyBlobbyToonMaterial(bodyM, { top: 0xffc38c, bottom: 0xca6b2e, gloss: 0.32, rim: 0.1, ambient: 0.45 });
+  applyBlobbyToonMaterial(tailM, { top: 0xffd7a1, bottom: 0xd39a4e, gloss: 0.24, rim: 0.08, ambient: 0.45 });
   const mkFish0 = () => { const g: any = new THREE.Group(); const b = new THREE.Mesh(new THREE.BoxGeometry(4.2, 1.7, 1.5), bodyM), t = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.9, 0.4), tailM); t.position.x = -2.7; g.add(b); g.tail = t; g.add(t); return g; };
   mkFish = mkFish0;
   const spots = SHALLOWS.filter(c => fishStand({ x: c.i * B, z: c.j * B }));
   for (let n = 0; n < 12 && spots.length; n++) {
     const c = spots[Math.floor(rand() * spots.length)], m = mkFish(); m.scale.setScalar(1);
     const f = { m, x: c.i * B + rr(-6, 6), z: c.j * B + rr(-6, 6), hx: c.i * B, hz: c.j * B, h: rand() * 6.28, sp: rr(2, 4), scare: 0, caught: false, respawn: 0, tt: rr(1, 4), ph: rr(0, 6) };
-    m.position.set(f.x, WATER_Y - 2.6, f.z); scene.add(m); FISH.push(f);
+    m.position.set(f.x, WATER_Y - 2.6, f.z);
+    m.traverse((o: THREE.Object3D) => { if ((o as THREE.Mesh).isMesh) attachEntityOutline(o as THREE.Mesh, 0.04); });
+    scene.add(m); FISH.push(f);
   }
 }
 export function updateFish(dt, t) {
@@ -197,7 +206,7 @@ export const S = {
     } }),
   swim: (dur, o: StepOpts = {}): Step => ({ text: o.text || 'Having a swim', start(d) { this.t = 0; this.tgt = null; this.tt = 0; d.poseName = 'swim'; d.look = 'forward'; },
     update(d, dt) { this.t += dt; this.tt -= dt; if (this.tt <= 0 || !this.tgt) { this.tgt = swimPoint(d); this.tt = rr(3, 6); } paddle(d, dt, this.tgt, 11); return this.t > dur; } }),
-  swimOut: (): Step => ({ text: 'Heading back to shore', start(d) { this.t = 0; const c = nearestShallow(d.pos); this.tgt = V2(c.i * B, c.j * B); d.poseName = 'swim'; },
+  swimOut: (o: StepOpts = {}): Step => ({ text: o.text || 'Heading back to shore', start(d) { this.t = 0; const c = nearestShallow(d.pos); this.tgt = V2(c.i * B, c.j * B); d.poseName = 'swim'; },
     update(d, dt) {
       this.t += dt; paddle(d, dt, this.tgt, 11);
       const c = colXZ(d.pos.x, d.pos.y);
@@ -233,7 +242,61 @@ export const S = {
       d.h = headingTo(dx, dz); d.poseName = 'stand'; d.fakeV = 11 * K; const st = Math.min(dist, 11 * dt); d.pos.x += dx / dist * st; d.pos.y += dz / dist * st; return false;
     } }),
   call: (fn): Step => ({ start(d) { fn(d); }, update() { return true; } }),
+  // cats: one bound onto a lily pad, or off the last one onto dry land. A pad may wobble and tip them in.
+  hop: (to: Pad | THREE.Vector2, o: StepOpts = {}): Step => ({ text: o.text, hopTo: to, start(d) {
+      this.t = 0; this.from = V2(d.pos.x, d.pos.y); this.y0 = d.rootY; this.pad = (to as Pad).r !== undefined ? to : null;
+      this.tx = this.pad ? this.pad.x : (to as THREE.Vector2).x; this.tz = this.pad ? this.pad.z : (to as THREE.Vector2).y;
+      this.dist = Math.hypot(this.tx - d.pos.x, this.tz - d.pos.y); this.dur = clamp(0.3 + this.dist / 30, 0.36, 0.62);
+      d.goal = null; d.faceH = null; d.h = headingTo(this.tx - d.pos.x, this.tz - d.pos.y); d.poseName = 'leap'; d.look = 'forward'; d.lily = true;
+      if (d.onPad) { d.onPad.load = 0; d.onPad.tilt += 0.08; d.onPad = null; }
+      if (this.pad) this.pad.claim = d;
+    },
+    update(d, dt) {
+      this.t += dt; const k = clamp(this.t / this.dur, 0, 1), e = k * k * (3 - 2 * k);
+      d.pos.set(lerp(this.from.x, this.tx, e), lerp(this.from.y, this.tz, e)); d.fakeV = 0;
+      const yEnd = this.pad ? padY(this.pad) + 0.5 * K : groundAtXZ(this.tx, this.tz) + 0.5 * K;
+      d.ovY = lerp(this.y0, yEnd, k) + Math.sin(k * Math.PI) * (3.5 + this.dist * 0.22);
+      if (k < 1) return false;
+      d.poseName = 'stand'; d.hop = 0.6;
+      if (!this.pad) { d.ovY = null; d.onPad = null; d.padIdx = -1; d.lily = false; return true; }
+      const p = this.pad as Pad; p.claim = null; p.load = 1; p.tilt += 0.12; d.onPad = p; d.padIdx = p.idx; d.padHops = (d.padHops || 0) + 1;
+      const slipP = d.forceSlip ? (d.padHops >= 3 ? 1 : 0) : o.slip || 0;
+      if (rand() < slipP) { d.forceSlip = false; d.queue.length = 0; d.queue.push(...catFall(d)); }
+      return true;
+    } }),
+  // standing on a pad: ride it as it bobs and sinks
+  onPad: (pose, dur, o: StepOpts = {}): Step => S.hold(pose, dur, Object.assign({ fixed: true }, o, { onUpdate: d => { if (d.onPad) d.ovY = padY(d.onPad) + 0.5 * K; } })),
+  // a wobbly pad tips a cat into the pond
+  fallIn: (): Step => ({ text: 'Whoa, wobbly pad!', start(d) { this.t = 0; this.stage = 0; d.poseName = 'cower'; d.look = 'jumpy'; },
+    update(d, dt) {
+      this.t += dt; const p = d.onPad as Pad | null;
+      if (this.stage === 0) {
+        if (p) { p.tilt = Math.min(0.5, p.tilt + dt * 1.4); d.ovY = padY(p) + 0.5 * K - this.t * 1.5; }
+        if (this.t < 0.75) return false;
+        this.stage = 1; this.t = 0; this.y0 = d.rootY; d.poseName = 'leap'; d.labelOverride = { text: 'Splash! ' + d.name + ' fell in', t: 3.2 };
+        if (p) { p.load = 0; p.tilt = 0.6; } d.onPad = null; d.padIdx = -1;
+      }
+      const k = clamp(this.t / 0.35, 0, 1); d.ovY = lerp(this.y0, WATER_Y - 5.6, k * k);
+      if (k < 1) return false;
+      d.swimming = true; d.lily = false; d.wet = 1; d.poseName = 'swim'; d.bigSplash(); return true;
+    } }),
 };
+/** What happens after a slip: a dunking, a grumpy paddle to the bank and a lot of dignity to recover. */
+export function catFall(d): Step[] {
+  const dry = randLand(d.pos.x, d.pos.y, 14, 34);
+  return [S.fallIn(), S.swimOut({ text: 'Not impressed, paddling for the bank' }), S.go(dry, 'trot', { text: 'Squelching back to dry land', arrive: 6 }),
+    S.hold('shake', 1.2, { text: 'Shaking off the pond', fixed: true, onStart: d2 => d2.splash() }), S.hold('sit', rr(4, 6), { text: "Pretending that didn't happen", look: 'sweep', fixed: true }), S.hold('stand', 0.5)];
+}
+/** How likely a pad is to tip a cat in: small pads and wet weather are worse. About one crossing in three ends in the pond. */
+export const slipChance = (p: Pad) => 0.025 + (p.r < 3 ? 0.03 : 0) + 0.05 * WX.rain;
+/** Hop back to whichever bank is nearer from pad index i (interrupted mid-crossing). */
+export function padExit(i: number): Step[] {
+  if (i < 0 || !PAD_CHAIN.length) return [];
+  const back = i < PAD_CHAIN.length / 2, out: Step[] = [];
+  if (back) { for (let k = i - 1; k >= 0; k--) out.push(S.hop(PAD_CHAIN[k])); out.push(S.hop(PAD_START)); }
+  else { for (let k = i + 1; k < PAD_CHAIN.length; k++) out.push(S.hop(PAD_CHAIN[k])); out.push(S.hop(PAD_END)); }
+  return out;
+}
 
 // places the dogs can go together; act(dog, side, point) returns steps
 const JET_END = V2((JETTY.i1 - 1) * B, (JETTY.j0 + JETTY.j1) / 2 * B);

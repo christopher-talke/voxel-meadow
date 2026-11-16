@@ -10,15 +10,19 @@ export const heartTex = canvasTex(g => {
 });
 export const dropTex = canvasTex(g => { g.fillStyle = 'rgba(220,240,255,0.95)'; g.beginPath(); g.arc(64, 64, 26, 0, 6.283); g.fill(); });
 const fxs: any[] = [];
+// sprites are recycled: splashes and drips come in bursts, and building a sprite and material each time churns memory
+const pool: THREE.Sprite[] = [];
 export function puff(tex, pos, size, life, vy, drift, vx = 0, vz = 0, grav = 0) {
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0 }));
-  s.position.copy(pos); s.scale.setScalar(size); scene.add(s);
+  let s = pool.pop();
+  if (!s) { s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0 })); scene.add(s); }
+  const m = s.material; if (m.map !== tex) { m.map = tex; m.needsUpdate = true; } m.opacity = 0;
+  s.visible = true; s.position.copy(pos); s.scale.setScalar(size);
   fxs.push({ s, t: 0, life, vy, drift, size, vx, vz, grav });
 }
 export function updateFx(dt) {
   for (let i = fxs.length - 1; i >= 0; i--) {
     const f = fxs[i]; f.t += dt; const p = f.t / f.life;
-    if (p >= 1) { scene.remove(f.s); f.s.material.dispose(); fxs.splice(i, 1); continue; }
+    if (p >= 1) { f.s.visible = false; pool.push(f.s); fxs[i] = fxs[fxs.length - 1]; fxs.pop(); continue; }
     f.vy -= f.grav * dt;
     f.s.position.x += (f.vx + Math.sin(f.t * 2.2) * f.drift) * dt; f.s.position.y += f.vy * dt; f.s.position.z += f.vz * dt;
     f.s.material.opacity = p < 0.15 ? p / 0.15 : 1 - (p - 0.15) / 0.85;

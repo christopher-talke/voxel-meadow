@@ -14,6 +14,7 @@ import { WHISTLE } from '../world/whistle';
 import { S, dogMeshes } from '../entities/behaviours';
 import { CLOTHS, clothMeshes, saveCloth } from '../entities/cloth';
 import { SB } from '../entities/ball';
+const WALLPAPER_BUILD = import.meta.env.PROD;
 
 export function callThem() { hideHint(); state.camMode = 'both'; whistle(); if (SND.on && SND.ctx) SFX.whistle(); dogs.forEach(d => d.interrupt(d.B('hello'), 'hello')); }
 export function playtime() {
@@ -116,46 +117,48 @@ function pickGround() {
 }
 export let down: { x: number; y: number; t: number } | null = null, hoverT = 0, drag: any = null;
 const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), dragPt = new THREE.Vector3();
-renderer.domElement.addEventListener('pointerdown', e => {
-  down = { x: e.clientX, y: e.clientY, t: performance.now() };
-  pointerRay(e);
-});
-renderer.domElement.addEventListener('pointermove', e => {
-  if (!drag || drag.done) return;
-  if (!drag.moved && Math.hypot(e.clientX - down!.x, e.clientY - down!.y) < 6) return;
-  if (!drag.moved) { drag.moved = true; clearTimeout(drag.hold); hideHint();
-    const cl = drag.cl, nx = cl.nx, kx = drag.k % nx, kz = Math.floor(drag.k / nx), p0 = [cl.p[drag.k * 3], cl.p[drag.k * 3 + 2]];
-    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
-      const x = kx + dx, z = kz + dz; if (x < 0 || z < 0 || x >= nx || z >= cl.nz) continue;
-      const k = z * nx + x, ox = cl.p[k * 3] - p0[0], oz = cl.p[k * 3 + 2] - p0[1]; drag.ks.push(k);
-      cl.grabs.set(k, () => ({ x: drag.target.x + ox, y: drag.target.y, z: drag.target.z + oz }));
-    } }
-  pointerRay(e); dragPlane.constant = -drag.y;
-  if (ray.ray.intersectPlane(dragPlane, dragPt)) drag.target.copy(dragPt);
-});
 function endDrag() { if (!drag) return; clearTimeout(drag.hold); if (drag.moved) { for (const k of drag.ks) drag.cl.grabs.delete(k); saveCloth(); } controls.enabled = true; const d = drag; drag = null; return d; }
-renderer.domElement.addEventListener('pointercancel', endDrag);
-renderer.domElement.addEventListener('pointerup', e => {
-  const dr = endDrag();
-  if (dr && (dr.moved || dr.done)) { down = null; return; }
-  const touch = e.pointerType === 'touch';
-  if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) < (touch ? 16 : 8) && performance.now() - down.t < (touch ? 650 : 500)) {
-    hideHint(); pointerRay(e);
-    let th = pickThing();
-    const nd = (!th || (th.kind !== 'ball' && th.kind !== 'whistle')) ? nearDog(e, touch ? 52 : 30) : null;
-    if (nd) th = { kind: 'dog', dog: nd };
-    if (th && th.kind === 'dog') { th.dog.pat(); if (ents.includes(th.dog)) { if (state.camMode !== th.dog.idx) { state.camMode = th.dog.idx; state.followZoom = true; } th.dog.talkT = 4; } }
-    else if (th && th.kind === 'whistle') { WHISTLE.kick = 1; callThem(); }
-    else if (th && th.kind === 'ball') { const a = rand() * 6.283; SB.vel.set(Math.cos(a) * 45, Math.sin(a) * 45); SB.vy = 60; ballGame(true); }
-    else if (th && th.kind === 'cloth') { if (th.cloth.bed !== undefined) bedNap(th.cloth.bed); else napTime(); }
-    else if (th && th.kind === 'bed') bedNap(th.bed);
-    else if (th && th.kind === 'clock') showHint('The meadow clock says ' + timeText() + (state.timeMode === 'live' ? '.' : ', running fast.'), 3000);
-    else { const g = pickGround(); if (g) goTo(g.x, g.z); }
-  }
-  down = null;
-});
-renderer.domElement.addEventListener('pointermove', e => {
-  if (e.pointerType !== 'mouse' || down || drag) return;
-  const now = performance.now(); if (now - hoverT < 90) return; hoverT = now;
-  pointerRay(e); stage.classList.toggle('pointer', !!pickThing());
-});
+if (!WALLPAPER_BUILD) {
+  renderer.domElement.addEventListener('pointerdown', e => {
+    down = { x: e.clientX, y: e.clientY, t: performance.now() };
+    pointerRay(e);
+  });
+  renderer.domElement.addEventListener('pointermove', e => {
+    if (!drag || drag.done) return;
+    if (!drag.moved && Math.hypot(e.clientX - down!.x, e.clientY - down!.y) < 6) return;
+    if (!drag.moved) { drag.moved = true; clearTimeout(drag.hold); hideHint();
+      const cl = drag.cl, nx = cl.nx, kx = drag.k % nx, kz = Math.floor(drag.k / nx), p0 = [cl.p[drag.k * 3], cl.p[drag.k * 3 + 2]];
+      for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+        const x = kx + dx, z = kz + dz; if (x < 0 || z < 0 || x >= nx || z >= cl.nz) continue;
+        const k = z * nx + x, ox = cl.p[k * 3] - p0[0], oz = cl.p[k * 3 + 2] - p0[1]; drag.ks.push(k);
+        cl.grabs.set(k, () => ({ x: drag.target.x + ox, y: drag.target.y, z: drag.target.z + oz }));
+      } }
+    pointerRay(e); dragPlane.constant = -drag.y;
+    if (ray.ray.intersectPlane(dragPlane, dragPt)) drag.target.copy(dragPt);
+  });
+  renderer.domElement.addEventListener('pointercancel', endDrag);
+  renderer.domElement.addEventListener('pointerup', e => {
+    const dr = endDrag();
+    if (dr && (dr.moved || dr.done)) { down = null; return; }
+    const touch = e.pointerType === 'touch';
+    if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) < (touch ? 16 : 8) && performance.now() - down.t < (touch ? 650 : 500)) {
+      hideHint(); pointerRay(e);
+      let th = pickThing();
+      const nd = (!th || (th.kind !== 'ball' && th.kind !== 'whistle')) ? nearDog(e, touch ? 52 : 30) : null;
+      if (nd) th = { kind: 'dog', dog: nd };
+      if (th && th.kind === 'dog') { th.dog.pat(); if (ents.includes(th.dog)) { if (state.camMode !== th.dog.idx) { state.camMode = th.dog.idx; state.followZoom = true; } th.dog.talkT = 4; } }
+      else if (th && th.kind === 'whistle') { WHISTLE.kick = 1; callThem(); }
+      else if (th && th.kind === 'ball') { const a = rand() * 6.283; SB.vel.set(Math.cos(a) * 45, Math.sin(a) * 45); SB.vy = 60; ballGame(true); }
+      else if (th && th.kind === 'cloth') { if (th.cloth.bed !== undefined) bedNap(th.cloth.bed); else napTime(); }
+      else if (th && th.kind === 'bed') bedNap(th.bed);
+      else if (th && th.kind === 'clock') showHint('The meadow clock says ' + timeText() + (state.timeMode === 'live' ? '.' : ', running fast.'), 3000);
+      else { const g = pickGround(); if (g) goTo(g.x, g.z); }
+    }
+    down = null;
+  });
+  renderer.domElement.addEventListener('pointermove', e => {
+    if (e.pointerType !== 'mouse' || down || drag) return;
+    const now = performance.now(); if (now - hoverT < 90) return; hoverT = now;
+    pointerRay(e); stage.classList.toggle('pointer', !!pickThing());
+  });
+}

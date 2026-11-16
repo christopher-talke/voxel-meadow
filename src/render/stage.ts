@@ -2,10 +2,11 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { state } from '../core/state';
 import { $, rand, rr } from '../core/util';
+const WALLPAPER_BUILD = import.meta.env.PROD;
 
 // ================= renderer, scene, camera =================
 export const stage = $('stage');
-export const renderer = new THREE.WebGLRenderer({ antialias: true });
+export const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 export const DPR = Math.min(window.devicePixelRatio || 1, 2);
 renderer.setPixelRatio(DPR);
 renderer.shadowMap.enabled = true;
@@ -23,6 +24,7 @@ controls.enablePan = true; controls.screenSpacePanning = false; controls.panSpee
 controls.minDistance = 22; controls.maxDistance = 1150;
 controls.maxPolarAngle = Math.PI * 0.62;
 controls.autoRotate = false; controls.autoRotateSpeed = 0.25;
+controls.enabled = !WALLPAPER_BUILD;
 export const COARSE = matchMedia('(pointer: coarse)').matches;
 if (COARSE) { controls.rotateSpeed = 0.5; controls.zoomSpeed = 0.9; controls.dampingFactor = 0.16; controls.panSpeed = 0.9; }
 controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
@@ -32,8 +34,13 @@ export const hemi = new THREE.HemisphereLight(0xe4f3ff, 0x7f9a62, 0.62);
 scene.add(hemi);
 export const sun = new THREE.DirectionalLight(0xfff3df, 0.95);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
-Object.assign(sun.shadow.camera, { left: -190, right: 190, top: 190, bottom: -190, near: 10, far: 1700 });
+// the sun's shadow box is fixed on the island and big enough for all of it (the island fits in a ~400 unit sphere),
+// so everything casts and receives shadows at every distance; the map is doubled to keep close-up detail as sharp as before
+export const SHADOW_R = 400;
+const SHADOW_MAP = Math.min(4096, renderer.capabilities.maxTextureSize || 4096);
+sun.shadow.mapSize.set(SHADOW_MAP, SHADOW_MAP);
+Object.assign(sun.shadow.camera, { left: -SHADOW_R, right: SHADOW_R, top: SHADOW_R, bottom: -SHADOW_R, near: 10, far: 1700 });
+sun.shadow.camera.updateProjectionMatrix();
 sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.6;
 scene.add(sun, sun.target);
 

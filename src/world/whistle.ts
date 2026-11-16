@@ -4,6 +4,8 @@ import { scene } from '../render/stage';
 import { B, block } from './layout';
 import { UNIT, groundTop } from './mesh';
 import { WX } from '../sim/sky';
+import { applyBlobbyToonMaterial } from '../render/blobbyToonMaterial';
+import { attachEntityOutline } from '../render/entityOutline';
 
 // ================= the whistle post: a brass whistle on a cord that you tap to call everyone =================
 /** The whistle post: its position, tappable meshes, the swinging cord group and the tap-kick that makes it swing and glow. */
@@ -19,6 +21,10 @@ export const WHISTLE = { x: 32, z: 6, meshes: [], kick: 0 } as unknown as {
   const wood = new THREE.MeshLambertMaterial({ color: 0xa87a4c }), woodD = new THREE.MeshLambertMaterial({ color: 0x8a6038 });
   WHISTLE.brass = new THREE.MeshLambertMaterial({ color: 0xf0c04a, emissive: 0x7a5410, emissiveIntensity: 0.5 });
   const cord = new THREE.MeshLambertMaterial({ color: 0xa83a3a });
+  applyBlobbyToonMaterial(wood, { top: 0xc89a6b, bottom: 0x76522f, gloss: 0.14, rim: 0.05, ambient: 0.42 });
+  applyBlobbyToonMaterial(woodD, { top: 0xa77a52, bottom: 0x5f4229, gloss: 0.12, rim: 0.04, ambient: 0.42 });
+  applyBlobbyToonMaterial(WHISTLE.brass, { top: 0xf4cf79, bottom: 0x9a6d2a, gloss: 0.36, rim: 0.12, ambient: 0.48 });
+  applyBlobbyToonMaterial(cord, { top: 0xc25a5a, bottom: 0x6d2a2a, gloss: 0.09, rim: 0.04, ambient: 0.4 });
   const bx = (par, w, h, d, m, x, y, z) => { const b = new THREE.Mesh(UNIT, m); b.scale.set(w, h, d); b.position.set(x, y, z); b.castShadow = true; b.receiveShadow = true; par.add(b); return b; };
   bx(g, 1.9, 15, 1.9, wood, 0, 7.5, 0); bx(g, 3.4, 1.4, 3.4, woodD, 0, 0.7, 0); bx(g, 1.4, 1.2, 1.4, woodD, 0, 15.5, 0);
   bx(g, 6.5, 1.1, 1.1, wood, 3.2, 13.6, 0); bx(g, 1.1, 2.2, 1.1, wood, 6.2, 12.8, 0);   // a hook arm
@@ -29,6 +35,7 @@ export const WHISTLE = { x: 32, z: 6, meshes: [], kick: 0 } as unknown as {
   g.position.set(WHISTLE.x, gy, WHISTLE.z); g.rotation.y = -0.5; g.scale.setScalar(1.6); scene.add(g);
   WHISTLE.g = g; WHISTLE.sw = sw;
   g.traverse(o => { if ((o as THREE.Mesh).isMesh && !WHISTLE.meshes.includes(o as THREE.Mesh)) WHISTLE.meshes.push(o as THREE.Mesh); });
+  WHISTLE.meshes.forEach(m => attachEntityOutline(m, 0.038));
   block(WHISTLE.x / B, WHISTLE.z / B, 1.7);
 }
 export function whistleUpdate(dt) {

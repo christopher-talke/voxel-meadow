@@ -11,11 +11,23 @@ import { SFX, SND, sndActivity } from '../audio/sound';
 import { dropTex, heartTex, puff, zTex } from '../fx/sprites';
 import { canStep, cellPt, findPath, moved0, nearestWalk, randLand } from '../nav/path';
 import type { Step } from './behaviours';
-import { FISH, mkFish, PKEYS, PLACES, POSES, S, SPEED, dogMat, dogMeshes, fishStand, hideSpot, isNight, pickFish, pileSlot } from './behaviours';
+import { FISH, mkFish, PKEYS, PLACES, POSES, S, SPEED, dogMat, dogMeshes, fishStand, hideSpot, isNight, padExit, pickFish, pileSlot, slipChance } from './behaviours';
+import { PAD_CHAIN, PAD_END, PAD_START } from '../world/pond';
 import { type Cloth, CLOTHS, bedBlanket, bedMade, clothHeight } from './cloth';
 import { SB, ballLand, ballPt, dribbleTarget, grabWithMouth, lineTarget, releaseGrab, steerTo, validCell } from './ball';
+import { attachEntityOutline } from '../render/entityOutline';
+import { applyBlobbyToonMaterial } from '../render/blobbyToonMaterial';
+import { isSmoothToonRenderer, onSmoothToonRendererChange } from '../render/renderFlags';
 
+/** Behaviours that ambient urges (a shake, the weather, a spook) should not cut into. */
+const BUSY = new Set(['hello', 'adventure', 'chase', 'zoomies', 'burst', 'spook', 'ball', 'contest', 'lilyhop']);
+// per-frame scratch, hoisted so the update loop doesn't allocate
+const IDLE_POSE = new Set(['stand', 'sniff', 'sit']), SNUG = new Set(['lie', 'sleep']), NO_WATCH = new Set(['watchtail', 'leave', 'ball']), SHELTERING = new Set(['shelter', 'bedtime']);
+const SETTLED = new Set(['sit', 'lie', 'stand']), SIT_LIE = new Set(['sit', 'lie']), LEGS = ['fl', 'fr', 'bl', 'br'];
+const TROT = [0, 0, 0, 0], GALLOP = [0, 0, 0, 0], SWING = [0, 0, 0, 0];
 export class Dog {
+  /** Lily-pad state for cats: the pad underfoot, its index on the hopping line, and whether a crossing is under way. */
+  onPad: any = null; padIdx = -1; padHops = 0; lily = false; forceSlip = false;
   activity: string;
   ambushCd: number;
   angV: any;
@@ -120,16 +132,24 @@ export class Dog {
   wet: number;
   wetV: number;
   zT: number;
+  voxelParts: THREE.InstancedMesh[];
+  blobRoot: THREE.Group;
+  blobParts: THREE.Mesh[];
+  blobTint: THREE.MeshLambertMaterial;
   constructor(idx: number, data: any, o: any) {
     this.idx = idx; this.p = o.persona; this.name = o.name;
     this.root = new THREE.Group(); this.root.scale.setScalar(K); if (this.p.size) this.root.scale.set(K * this.p.size[0], K * this.p.size[1], K * this.p.size[2]); scene.add(this.root);
     const pv = data.pivots, bp = pv.body; this.mat = dogMat.clone();
     this.bodyJ = new THREE.Group(); this.bodyJ.position.set(0, bp[1], 0); this.bodyJ.rotation.order = 'ZXY';
     this.root.add(this.bodyJ);
+    this.voxelParts = [];
+    this.blobParts = [];
     const mk = (g, piv) => {
       const arr = data.groups[g], n = arr.length / 4, m = new THREE.InstancedMesh(UNIT, this.mat, n), ob = new THREE.Object3D(), c = new THREE.Color();
       for (let i = 0; i < n; i++) { ob.position.set(arr[i * 4] - piv[0], arr[i * 4 + 1] - piv[1], arr[i * 4 + 2] - piv[2]); ob.updateMatrix(); m.setMatrixAt(i, ob.matrix); c.set(data.pal[arr[i * 4 + 3]]); m.setColorAt(i, c); }
       m.castShadow = m.receiveShadow = true; m.frustumCulled = false; m.userData.dog = this; dogMeshes.push(m);
+      attachEntityOutline(m, 0.045);
+      this.voxelParts.push(m);
       return m;
     };
     this.bodyJ.add(mk('body', bp));
@@ -140,6 +160,63 @@ export class Dog {
     this.earJ = { el: earJ('el'), er: earJ('er') };
     this.earLift = 0; this.earSwing = 0;
     if (this.p.cat) { this.fishM = mkFish(); this.fishM.scale.setScalar(2.1); this.fishM.position.set(9, -4, 0); this.fishM.visible = false; this.headJ.add(this.fishM); }
+    this.blobTint = new THREE.MeshLambertMaterial({ color: this.p.cat ? 0xd8c7b1 : this.name === 'Murphy' ? 0xc88a63 : this.name === 'Mali' ? 0xd6b596 : this.name === 'Bobby' ? 0xa88c72 : 0xc2aa92 });
+    applyBlobbyToonMaterial(this.blobTint, { top: this.p.cat ? 0xf0e0ce : 0xf6d4bc, bottom: this.p.cat ? 0x9c8269 : 0x8c6750, gloss: 0.3, rim: 0.12, ambient: 0.44 });
+    const accentMat = new THREE.MeshLambertMaterial({ color: this.p.cat ? 0xf2e3d3 : this.name === 'Bobby' ? 0xc4ae95 : 0xf2dcc4 });
+    applyBlobbyToonMaterial(accentMat, { top: 0xf7ede1, bottom: 0xc8aa8c, gloss: 0.22, rim: 0.08, ambient: 0.46 });
+    const noseMat = new THREE.MeshLambertMaterial({ color: 0x2b231f });
+    applyBlobbyToonMaterial(noseMat, { top: 0x443731, bottom: 0x171110, gloss: 0.5, rim: 0.04, ambient: 0.32 });
+    const blobPart = (parent: THREE.Object3D, geo: THREE.BufferGeometry, pos: [number, number, number], scl: [number, number, number], mat: THREE.Material = this.blobTint) => {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(pos[0], pos[1], pos[2]);
+      m.scale.set(scl[0], scl[1], scl[2]);
+      m.castShadow = m.receiveShadow = true;
+      parent.add(m);
+      attachEntityOutline(m, 0.042);
+      this.blobParts.push(m);
+      return m;
+    };
+    this.blobRoot = new THREE.Group();
+    this.root.add(this.blobRoot);
+    if (this.p.cat) {
+      blobPart(this.bodyJ, new THREE.SphereGeometry(8, 18, 14), [0, 5.8, 0], [1.45, 0.85, 0.78]);
+      blobPart(this.bodyJ, new THREE.SphereGeometry(4.4, 14, 12), [5.2, 5.7, 0], [0.9, 0.72, 0.68]); // shoulder blend
+      blobPart(this.headJ, new THREE.SphereGeometry(4.1, 16, 12), [5.4, 2.25, 0], [1.0, 0.86, 0.84]);
+      blobPart(this.headJ, new THREE.SphereGeometry(2.3, 12, 10), [8.2, 1.25, 0], [1.0, 0.62, 0.66], accentMat); // short cat muzzle
+      blobPart(this.tailJ, new THREE.SphereGeometry(2.4, 12, 10), [-2.9, 1.0, 0], [2.8, 0.5, 0.5]); // long slim tail
+      for (const k of LEGS) blobPart(this.legJ[k], new THREE.SphereGeometry(2.2, 10, 10), [0, -6.3, 0], [0.62, 2.1, 0.62]);
+      blobPart(this.earJ.el, new THREE.ConeGeometry(1.5, 3.8, 10), [0.15, 1.7, 0], [0.78, 1.0, 0.7]); // pointed cat ears
+      blobPart(this.earJ.er, new THREE.ConeGeometry(1.5, 3.8, 10), [0.15, 1.7, 0], [0.78, 1.0, 0.7]);
+    } else {
+      blobPart(this.bodyJ, new THREE.SphereGeometry(8, 18, 14), [0, 6, 0], [1.38, 1.0, 0.95]);
+      blobPart(this.bodyJ, new THREE.SphereGeometry(4.4, 14, 12), [5.5, 5.8, 0], [0.95, 0.85, 0.82]); // chest
+      blobPart(this.headJ, new THREE.SphereGeometry(4.8, 16, 12), [5.3, 2.1, 0], [1.12, 0.96, 0.93]);
+      blobPart(this.headJ, new THREE.SphereGeometry(2.9, 12, 10), [9.1, 1.2, 0], [1.2, 0.72, 0.82], accentMat); // dog muzzle
+      blobPart(this.tailJ, new THREE.SphereGeometry(2.6, 12, 10), [-3, 0.8, 0], [2.15, 0.66, 0.66]);
+      for (const k of LEGS) blobPart(this.legJ[k], new THREE.SphereGeometry(2.6, 10, 10), [0, -6.3, 0], [0.86, 1.95, 0.86]);
+      blobPart(this.earJ.el, new THREE.SphereGeometry(1.9, 10, 10), [0.1, 0.5, 0], [0.75, 1.48, 0.6]); // floppy dog ears
+      blobPart(this.earJ.er, new THREE.SphereGeometry(1.9, 10, 10), [0.1, 0.5, 0], [0.75, 1.48, 0.6]);
+      if (this.name === 'Bobby') blobPart(this.bodyJ, new THREE.SphereGeometry(3.9, 12, 10), [-0.5, 6.1, 0], [1.1, 0.78, 0.92], accentMat); // senior stockier back
+      if (this.name === 'Mali') blobPart(this.bodyJ, new THREE.SphereGeometry(3.5, 12, 10), [6.4, 5.8, 0], [0.9, 0.8, 0.84], accentMat); // gentle chest patch
+      if (this.name === 'Murphy') blobPart(this.headJ, new THREE.SphereGeometry(1.5, 10, 10), [8.7, 2.05, 0], [1.0, 0.8, 0.65], accentMat); // blaze
+    }
+    blobPart(this.headJ, new THREE.SphereGeometry(0.75, 10, 10), [9.9, 1.35, 0], [1.0, 0.75, 0.75], noseMat);
+    for (const k of LEGS) blobPart(this.legJ[k], new THREE.SphereGeometry(1.2, 8, 8), [0, -8.8, 0], [1.0, 0.55, 1.15], accentMat);
+    const eyeMat = new THREE.MeshLambertMaterial({ color: 0x201c1a });
+    applyBlobbyToonMaterial(eyeMat, { top: 0x3a332f, bottom: 0x130f0d, gloss: 0.5, rim: 0.04, ambient: 0.32 });
+    const eye = (x: number, z: number, sx = 1, sy = 1, sz = 1) => { const e = new THREE.Mesh(new THREE.SphereGeometry(0.8, 10, 10), eyeMat); e.position.set(x, 2.8, z); e.scale.set(sx, sy, sz); this.headJ.add(e); };
+    if (this.p.cat) { eye(7.3, 1.35, 0.9, 1.05, 0.7); eye(7.3, -1.35, 0.9, 1.05, 0.7); }
+    else { eye(7.8, 1.3); eye(7.8, -1.3); }
+    const syncRenderMode = (smooth: boolean) => {
+      this.voxelParts.forEach(m => m.visible = true);
+      this.mat.transparent = smooth;
+      this.mat.opacity = smooth ? 0.4 : 1;
+      this.mat.depthWrite = !smooth;
+      this.blobRoot.visible = smooth;
+      this.blobParts.forEach(m => m.visible = smooth);
+    };
+    syncRenderMode(isSmoothToonRenderer());
+    onSmoothToonRendererChange(syncRenderMode);
     this.elev = 0; this.elevT = 0; this.fakeV = 0; this.pos = V2(o.x, o.z); this.h = o.h; this.v = 0; this.rootY = 0.5 * K; this.slope = 0;
     this.cur = Object.assign({}, POSES.stand, { hy: 0, lookPitch: 0, tilt: 0 }); this.poseName = 'stand';
     this.phase = rr(0, 6); this.wagPh = rr(0, 6); this.stepW = 0; this.seed = rr(0, 100);
@@ -149,15 +226,23 @@ export class Dog {
     this.energy = rr(0.65, 1); this.thirst = rr(0, 0.4);
     this.wagBoost = 0; this.hop = 0; this.fx = { shake: 0, lap: 0, twitch: 0, bounce: 0, pant: 0, wiggle: 0, crawl: 0, rub: 0, happy: 0, dig: 0, tug: 0 }; this.pant = false; this.zT = 0; this.wet = 0; this.wetV = 0; this.ovY = null; this.swimming = false;
   }
-  get fwd() { return V2(Math.cos(this.h), -Math.sin(this.h)); }
+  private _fwd = new THREE.Vector2();
+  /** Unit facing on the ground plane. Shared per animal and rewritten on each read, so copy it if you need to keep it. */
+  get fwd() { return this._fwd.set(Math.cos(this.h), -Math.sin(this.h)); }
   headWorld(out = new THREE.Vector3()) { return this.headJ.localToWorld(out.set(7, 7, 0)); }
   label() { return this.labelOverride ? this.labelOverride.text : this.activity; }
   tailTip(out = new THREE.Vector3()) { return this.tailJ.localToWorld(out.set(this.p.swish > 1 ? -6 : -1.5, 12, 0)); }
-  free(): boolean { return !['hello', 'adventure', 'chase', 'zoomies', 'burst', 'spook', 'ball', 'contest'].includes(this.behaviour as string); }
+  free(): boolean { return !BUSY.has(this.behaviour as string); }
   setQueue(steps: Step[], key: string | null) { this.spotInfo = null; this.queue = steps; this.behaviour = key; this.lastB = key; }
   interrupt(steps: Step[], key: string | null) {
     const pre: any[] = [];
     if (this.elevT > 0) pre.push(S.down());
+    if (this.lily && !this.swimming) {   // mid-crossing: finish the hop in the air, then bound back to the nearer bank
+      const to = this.step && this.step.hopTo, at = to ? (to.idx !== undefined ? to.idx : -1) : this.padIdx;
+      if (to) pre.push(S.hop(to));
+      if (to && to.idx === undefined) { /* already heading for land */ } else pre.push(...padExit(at));
+      pre.push(S.call(d => { d.lily = false; d.onPad = null; d.padIdx = -1; d.ovY = null; }));
+    }
     if (this.swimming) pre.push(S.swimOut());
     this.kickDir = null; this.backV = 0; this.spotInfo = null; releaseGrab(this);
     if (this.poseName === 'sleep' || this.poseName === 'roll') pre.push(S.hold('lie', 1.0, { text: this.poseName === 'sleep' ? 'Waking up' : undefined, look: 'forward' }));
@@ -246,6 +331,7 @@ export class Dog {
       ball: this.energy > 0.4 && !night ? W.ball : 0, tummy: W.tummy, rub: W.rub,
       climb: W.climb || 0, perch: W.perch || 0,
       fish: W.fish && !night && FISH.length ? W.fish : 0,
+      lilyhop: W.lily && !night && PAD_CHAIN.length > 2 && WX.rain < 0.2 && !(o.lily || o.behaviour === 'lilyhop') ? W.lily : 0,
       ambush: W.ambush && !this.ambushCd && !night && dogs.some(d => d.poseName !== 'sleep') ? W.ambush : 0,
       tidy: this.tidyTarget() ? this.p.tidy * (1 + 8 * this.tidyTarget()!.mess()) : 0,
       grump: this.p.moody && this.mood ? W.grump : 0,
@@ -462,6 +548,25 @@ export class Dog {
           S.call(d => { if (dist() > 62) { d.queue.length = 0; d.queue.push(S.hold('stand', 0.4), S.hold('sit', 2, { text: 'Lost interest' })); } }),
           S.pounce(dog), S.go(randLand(this.pos.x, this.pos.y, 30, 60), 'run', { text: 'Zooming off', arrive: 6, ignoreOther: true }), S.hold('sit', rr(3, 5), { text: 'Looking innocent', look: 'sweep' }), S.hold('stand', 0.5)];
       }
+      case 'lilyhop': {   // cats: bound across the lily pads from the jetty to the far bank (or back), and maybe fall in
+        if (PAD_CHAIN.length < 3) return this.B('sit');
+        const fromJetty = Math.hypot(PAD_START.x - this.pos.x, PAD_START.y - this.pos.y) < Math.hypot(PAD_END.x - this.pos.x, PAD_END.y - this.pos.y);
+        const start = fromJetty ? PAD_START : PAD_END, end = fromJetty ? PAD_END : PAD_START, order = fromJetty ? PAD_CHAIN.slice() : PAD_CHAIN.slice().reverse();
+        const at = (p: any) => () => V3.set(p.x, WATER_Y, p.z !== undefined ? p.z : p.y);
+        const q: Step[] = [S.go(V2(start.x, start.y), 'walk', { text: 'Heading for the lily pads', arrive: 2, ignoreOther: true }), S.face(() => headingTo(order[0].x - this.pos.x, order[0].z - this.pos.y)),
+          S.call(d => { d.padHops = 0; }),
+          S.hold('sit', rr(1.6, 2.8), { text: 'Sizing up the lily pads', look: 'point', lookFn: at(order[0]), fixed: true }),
+          S.hold('stalk', 0.9, { text: 'Wiggling, getting ready', look: 'point', lookFn: at(order[0]), fixed: true })];
+        const mid = Math.floor(order.length / 2);
+        order.forEach((p, k) => {
+          const next = order[k + 1] || end;
+          q.push(S.hop(p, { text: k === 0 ? 'Hop!' : k === mid ? 'Halfway there' : k === order.length - 1 ? 'Nearly there' : 'Hopping the lily pads', slip: slipChance(p) }));
+          q.push(S.onPad(k === mid ? 'sit' : 'stand', k === mid ? rr(1.2, 2) : rr(0.35, 0.9), { look: 'point', lookFn: at(next) }));
+        });
+        q.push(S.hop(V2(end.x, end.y), { text: 'One last leap' }), S.hold('stand', 0.7, { text: 'Made it!', fixed: true, onStart: d => { d.labelOverride = { text: 'Made it!', t: 2 }; } }),
+          S.hold('bow', 1.4, { text: 'Very pleased with that', look: 'forward' }), S.hold('stand', 0.5));
+        return q;
+      }
       case 'catnap': {
         const night = todKey === 'night', pk = rand();
         const spot = pk < 0.35 ? (() => { const l = rand() < 0.5 ? [-17, -11] : [17, 10], w = blanketToWorld(l[0] + rr(-3, 3), l[1] + rr(-3, 3)); return V2(w.x, w.z); })()
@@ -605,13 +710,13 @@ export class Dog {
     this.energy = clamp(this.energy + dt * (sleeping ? 0.03 : -(0.004 + (this.v > 60 * K ? 0.02 : 0)) * this.p.drain), 0, 1);
     // Murphy startles now and then, and runs back to Mali
     this.spookCd = Math.max(0, (this.spookCd || 0) - dt);
-    if (this.p.nervous && !this.spookCd && this.free() && this.behaviour !== 'spook' && ['stand', 'sniff', 'sit'].includes(this.poseName) && rand() < dt * (todKey === 'night' ? 0.03 : 0.012)) this.startle();
+    if (this.p.nervous && !this.spookCd && this.free() && this.behaviour !== 'spook' && IDLE_POSE.has(this.poseName) && rand() < dt * (todKey === 'night' ? 0.03 : 0.012)) this.startle();
     this.thirst = clamp(this.thirst + dt * 0.004, 0, 1);
     this.trickCd = Math.max(0, (this.trickCd || 0) - dt);
     if (this.fishM) { this.fishT = Math.max(0, (this.fishT || 0) - dt); if (!this.fishT) this.hasFish = false; this.fishM.visible = !!this.hasFish; }
     this.ambushCd = Math.max(0, (this.ambushCd || 0) - dt);
     this.watchCd = Math.max(0, (this.watchCd === undefined ? rr(5, 20) : this.watchCd) - dt);
-    if (this.p.curious && !this.p.cat && WX.rain < 0.3 && !isNight() && !this.watchCd && this.free() && !['sleep'].includes(this.poseName) && !this.elevT && !['watchtail', 'leave', 'ball'].includes(this.behaviour as string)) {
+    if (this.p.curious && !this.p.cat && WX.rain < 0.3 && !isNight() && !this.watchCd && this.free() && this.poseName !== 'sleep' && !this.elevT && !NO_WATCH.has(this.behaviour as string)) {
       const c = cats.find(c => c !== this && c.swishing && c.elev < 1 && Math.hypot(c.pos.x - this.pos.x, c.pos.y - this.pos.y) < 95);
       if (c && rand() < dt * 0.35 * this.p.curious) { this.watchCd = rr(40, 80); this.watchTarget = c; this.interrupt(this.B('watchtail'), 'watchtail'); }
     }
@@ -630,7 +735,7 @@ export class Dog {
       let mark: Dog | null = null;
       for (const o of dogs) {
         if (o === this) continue;
-        const snug = o.spotInfo && ['lie', 'sleep'].includes(o.poseName) && o.v < 2 * K;
+        const snug = o.spotInfo && SNUG.has(o.poseName) && o.v < 2 * K;
         o.snugT = snug ? (o.snugT || 0) + dt : 0;
         if (snug && o.snugT > 1.2 && !mark) mark = o;
       }
@@ -716,7 +821,7 @@ export class Dog {
     this.rootY = damp(this.rootY, this.elev > 0.5 ? gy + this.elev + 0.5 * K : gy + deckH(this.pos.x, this.pos.y) + bedTop(this.pos.x, this.pos.y) + clothHeight(this.pos.x, this.pos.y) + 0.5 * K, 8, dt);
     if (this.ovY !== null) this.rootY = this.ovY;
     {   // wet fur: darkens, drips, dries slowly, and gets shaken off once out of the water
-      const inW = !!(colNow && (colNow.type === 'shallow' || colNow.type === 'deep') && !colNow.jetty);
+      const inW = !!(colNow && (colNow.type === 'shallow' || colNow.type === 'deep') && !colNow.jetty) && !this.lily;
       if (!inW && this.poseName !== 'shake') this.wet = Math.max(0, this.wet - dt / 45);
       this.wetV = damp(this.wetV, this.wet > 0.02 ? Math.min(1, this.wet * 1.4) : 0, 2.5, dt);
       this.mat.color.setRGB(1 - 0.4 * this.wetV, 1 - 0.32 * this.wetV, 1 - 0.2 * this.wetV);
@@ -725,11 +830,11 @@ export class Dog {
       const inRain = WX.rain > 0.2 && !underRoof(this.pos.x, this.pos.y) && !(this.onRoof);
       if (inRain && !this.swimming) this.wet = Math.min(1, this.wet + dt * WX.rain / 10);
       this.shelterCd = Math.max(0, (this.shelterCd || 0) - dt);
-      if ((WX.rain > 0.35 || WX.storm > 0.4) && !this.shelterCd && this.free() && !this.swimming && !['shelter', 'bedtime'].includes(this.behaviour as string) && rand() < dt * 0.6) { this.shelterCd = 25; this.interrupt(this.B('shelter'), 'shelter'); }
+      if ((WX.rain > 0.35 || WX.storm > 0.4) && !this.shelterCd && this.free() && !this.swimming && !SHELTERING.has(this.behaviour as string) && rand() < dt * 0.6) { this.shelterCd = 25; this.interrupt(this.B('shelter'), 'shelter'); }
       this.dryT = !inW && !inRain && !this.swimming && this.wet > 0.35 ? (this.dryT || 0) + dt : 0;
       if (this.dryT > 1.4 && !this.shakeCd && this.free() && this.poseName !== 'shake') { this.shakeCd = 12; this.interrupt([S.hold('shake', 1.1, { text: 'Shaking off the water', onStart: d2 => d2.splash() }), S.hold('stand', 0.7)], 'shakeoff'); }
     }
-    if (colNow && (colNow.type === 'shallow' || colNow.type === 'deep') && !colNow.jetty) this.wet = 1;
+    if (colNow && (colNow.type === 'shallow' || colNow.type === 'deep') && !colNow.jetty && !this.lily) this.wet = 1;
     const gAt = (x, z) => { const c = cellIdx(x, z); return c >= 0 ? G.gy[c] : gy; };
     this.slope = damp(this.slope, clamp(Math.atan2(gAt(this.pos.x + f.x * 8, this.pos.y + f.y * 8) - gAt(this.pos.x - f.x * 8, this.pos.y - f.y * 8), 16), -0.35, 0.35), 4, dt);
 
@@ -777,10 +882,11 @@ export class Dog {
     this.fidgetE = Math.max(0, (this.fidgetE || 0) - dt / 0.45);
     if (this.poseName === 'shake') this.wet = 0;
 
-    const trot = [Math.sin(ph), -Math.sin(ph), -Math.sin(ph), Math.sin(ph)];
-    const gallop = [Math.sin(ph), Math.sin(ph + 0.6), Math.sin(ph + Math.PI + 0.3), Math.sin(ph + Math.PI + 0.9)];
+    const sph = Math.sin(ph), trot = TROT, gallop = GALLOP, swing = SWING;
+    trot[0] = sph; trot[1] = -sph; trot[2] = -sph; trot[3] = sph;
+    gallop[0] = sph; gallop[1] = Math.sin(ph + 0.6); gallop[2] = Math.sin(ph + Math.PI + 0.3); gallop[3] = Math.sin(ph + Math.PI + 0.9);
     const amp = lerp(0.42 + 0.12 * smooth(20, 55, vn), 0.72, runF) * gw;
-    const swing = trot.map((v, i) => lerp(v, gallop[i], runF) * amp + fx.wiggle * 0.45 * Math.sin(t * 8 + i * 1.7) + (i === this.fidgetLeg ? (i < 2 ? 0.6 : 0.35) * Math.sin(Math.PI * (1 - this.fidgetE)) : 0) + fx.happy * 0.12 * Math.sin(t * 13 + i * 2) + (i < 2 ? fx.crawl * 0.22 * Math.sin(ph + i * Math.PI) + fx.dig * 0.75 * Math.sin(t * 15 + i * Math.PI) : 0));
+    for (let i = 0; i < 4; i++) swing[i] = lerp(trot[i], gallop[i], runF) * amp + fx.wiggle * 0.45 * Math.sin(t * 8 + i * 1.7) + (i === this.fidgetLeg ? (i < 2 ? 0.6 : 0.35) * Math.sin(Math.PI * (1 - this.fidgetE)) : 0) + fx.happy * 0.12 * Math.sin(t * 13 + i * 2) + (i < 2 ? fx.crawl * 0.22 * Math.sin(ph + i * Math.PI) + fx.dig * 0.75 * Math.sin(t * 15 + i * Math.PI) : 0);
     const breath = sleeping ? 0.4 * Math.sin(t * 1.5 + this.seed) : 0.16 * Math.sin(t * 2.4 + this.seed);
     const lift = c.lift + breath + gw * this.p.bounce * ((1 - runF) * 0.9 * Math.abs(Math.sin(ph)) + runF * 2.4 * Math.sin(ph - 0.6))
       + fx.bounce * 0.9 * Math.abs(Math.sin(t * 7)) + fx.rub * 0.6 * Math.sin(t * 10) + fx.pant * 0.35 * Math.sin(t * 15) + (this.hop > 0 ? 4 * Math.sin(Math.PI * (1 - this.hop)) : 0);
@@ -800,7 +906,7 @@ export class Dog {
     this.tailJ.rotation.z = c.tr - gw * 0.15 - runF * 0.1;
     this.tailJ.rotation.y = c.tc + wagAmp * Math.sin(this.wagPh);
     if (this.p.cat) {   // lazy sideways swish; stronger when awake and settled, with the odd flick
-      const settled = ['sit', 'lie', 'stand'].includes(this.poseName) && gw < 0.15 && this.elevT < 0.5 || ['sit', 'lie'].includes(this.poseName);
+      const settled = SETTLED.has(this.poseName) && gw < 0.15 && this.elevT < 0.5 || SIT_LIE.has(this.poseName);
       const want = settled ? this.p.swish * (0.55 + 0.45 * Math.sin(t * 0.37 + this.seed)) : this.poseName === 'sleep' ? 0 : this.p.swish * 0.25;
       this.swishAmt = damp(this.swishAmt || 0, want, 1.2, dt);
       this.swPh = (this.swPh || 0) + dt * (1.7 + this.swishAmt * 1.6 + 2.2 * Math.max(0, Math.sin(t * 0.9 + this.seed * 2) - 0.8) * 5);
@@ -809,7 +915,7 @@ export class Dog {
       this.tailJ.rotation.y += sw * tilt * 0.9 - wagAmp * Math.sin(this.wagPh) * 0.6;
       this.swishing = this.swishAmt > 0.5 && this.poseName !== 'sleep';
     }
-    ['fl', 'fr', 'bl', 'br'].forEach((k, i) => { this.legJ[k].rotation.z = c[k] - c.pitch + swing[i]; });
+    for (let i = 0; i < 4; i++) { const k = LEGS[i]; this.legJ[k].rotation.z = c[k] - c.pitch + swing[i]; }
 
     // floppy ears: hang with gravity, bounce with the gait, blow back when running, lift when paying attention
     const headPitchW = pitch + this.headJ.rotation.z, upright = 1 - Math.min(1, Math.abs(roll) / 1.2);
@@ -821,6 +927,11 @@ export class Dog {
     this.earLift = damp(this.earLift, liftT * (this.poseName === 'cower' ? 0.2 : 1) - (this.poseName === 'cower' ? 0.22 : 0) + fx.happy * 0.2 * Math.sin(t * 13), 10, dt); this.earSwing = damp(this.earSwing, swingT, 8, dt);
     this.earJ.el.rotation.set(-this.earLift, 0, this.earSwing);
     this.earJ.er.rotation.set(this.earLift, 0, this.earSwing);
+    if (this.blobRoot.visible) {
+      const squash = clamp(1 + (this.hop > 0 ? Math.sin(Math.PI * (1 - this.hop)) * 0.18 : 0) - Math.min(0.1, this.v / (140 * K) * 0.08), 0.84, 1.2);
+      const xz = 1 / Math.sqrt(squash);
+      this.blobRoot.scale.set(xz, squash, xz);
+    }
     this.root.updateMatrixWorld(true);
 
     if (sleeping && c.roll > 1.1) { this.zT -= dt; if (this.zT <= 0) { this.zT = 1.7; puff(zTex, this.headWorld(V3).add(new THREE.Vector3(0, 2, 0)), 3.2, 3.2, 3, 1.5); } }

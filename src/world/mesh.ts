@@ -1,13 +1,21 @@
 import * as THREE from 'three';
 import { clamp, jit, mixHex, noise, rand, rr } from '../core/util';
 import { DPR, scene } from '../render/stage';
+import { applyBlobbyToonMaterial } from '../render/blobbyToonMaterial';
+import { attachEntityOutline } from '../render/entityOutline';
+import { buildSmoothTerrainMesh } from './smoothTerrainMesher';
+import { isSmoothToonRenderer, onSmoothToonRendererChange } from '../render/renderFlags';
 import { B, BEDS, DECK, FIELD, POLE, SH, SHELTER_POSTS, colAt, colXZ, cols, isWaterCol } from './layout';
 import { BALL, BALL_R, CHERRY, DK, ballBoxes, boxes, decor } from './decor';
 
 // ================= meshing =================
 const quadsP: number[] = [], quadsN: number[] = [], quadsC: number[] = [], quadsI: number[] = [];
 function makeMesher() { return { p: [], n: [], c: [], i: [], v: 0 }; }
-const TERR = makeMesher(), DEC = makeMesher(), WAT = makeMesher();
+const WAT = makeMesher();
+const TERR_MESHES: THREE.Mesh[] = [];
+// terrain and decor are split into square chunks so the camera and the sun's shadow camera can skip what they can't see
+const CHUNK = 32 * B, TERR_CH = new Map<number, any>(), DEC_CH = new Map<number, any>();
+const chunkAt = (map: Map<number, any>, x: number, z: number) => { const k = (Math.floor(x / CHUNK) + 64) * 128 + Math.floor(z / CHUNK) + 64; let m = map.get(k); if (!m) { m = makeMesher(); map.set(k, m); } return m; };
 const _cc = new THREE.Color();
 function quad(M, ax, ay, az, ux, uy, uz, vx, vy, vz, nx, ny, nz, col) {
   const cx = uy * vz - uz * vy, cy = uz * vx - ux * vz, cz = ux * vy - uy * vx;
@@ -42,7 +50,7 @@ const sideColour = (c, depth) => depth === 0 ? (c.type === 'sand' ? jit(0xdcc995
   : depth <= 2 ? jit(rand() < 0.5 ? 0x8b5e3c : 0x7c5236, 0.05) : rand() < 0.07 ? jit(0x6f8f55, 0.06) : jit(depth > 12 ? 0x767a82 : 0x8b8f96, 0.05);
 for (const c of cols) {
   if (!c) continue;
-  const x = c.i * B, z = c.j * B;
+  const x = c.i * B, z = c.j * B, TERR = chunkAt(TERR_CH, x, z);
   quad(TERR, x - H, c.top * B, z - H, B, 0, 0, 0, 0, B, 0, 1, 0, topColour(c));
   quad(TERR, x - H, c.bot * B, z - H, B, 0, 0, 0, 0, B, 0, -1, 0, jit(0x6c7077, 0.05));
   for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
@@ -72,14 +80,20 @@ for (const [key, col] of decor) {
   const j = key % 2048 - 600, k = Math.floor(key / 2048) % 2048 - 600, i = Math.floor(key / (2048 * 2048)) - 600;
   for (const [di, dk, dj] of D6) {
     if (decor.has(DK(i + di, k + dk, j + dj)) || terrainSolid(i + di, k + dk, j + dj)) continue;
-    const x = i * B, y = (k - 0.5) * B, z = j * B;
+    const x = i * B, y = (k - 0.5) * B, z = j * B, DEC = chunkAt(DEC_CH, x, z);
     if (di) quad(DEC, x + di * H, y - H, z - H, 0, B, 0, 0, 0, B, di, 0, 0, col);
     else if (dk) quad(DEC, x - H, y + dk * H, z - H, B, 0, 0, 0, 0, B, 0, dk, 0, col);
     else quad(DEC, x - H, y - H, z + dj * H, B, 0, 0, 0, B, 0, 0, 0, dj, col);
   }
 }
 export const vcMat = new THREE.MeshLambertMaterial({ vertexColors: true });
-const terrainMesh = finish(TERR, vcMat); terrainMesh.receiveShadow = true; terrainMesh.castShadow = true; scene.add(terrainMesh);
+applyBlobbyToonMaterial(vcMat, { top: 0xf1e7dc, bottom: 0xcbbba7, gloss: 0.03, rim: 0.02, ambient: 0.46 });
+/** A static mesh: never moves, so its matrices are computed once rather than every frame. */
+export const freeze = <T extends THREE.Object3D>(o: T): T => { o.updateMatrix(); o.updateMatrixWorld(true); o.matrixAutoUpdate = false; return o; };
+const chunked = (map: Map<number, any>, mat: THREE.Material, out?: THREE.Mesh[]) => { for (const M of map.values()) { if (!M.v) continue; const m = finish(M, mat); m.frustumCulled = true; m.geometry.computeBoundingSphere(); m.receiveShadow = m.castShadow = true; scene.add(freeze(m)); if (out) out.push(m); } };
+chunked(TERR_CH, vcMat, TERR_MESHES);
+const smoothTerrainMesh = freeze(buildSmoothTerrainMesh());
+scene.add(smoothTerrainMesh);
 export const cutU = { uFocus: { value: new THREE.Vector3() }, uCam: { value: new THREE.Vector3() }, uRoof: { value: 0 }, uCutOn: { value: 1 } };
 const decorMat = new THREE.MeshLambertMaterial({ vertexColors: true });
 decorMat.onBeforeCompile = sh => {
@@ -93,9 +107,17 @@ decorMat.onBeforeCompile = sh => {
       if (n < smoothstep(r, r * 0.5, d)) discard;
     }`);
 };
-const decorMesh = finish(DEC, decorMat); decorMesh.receiveShadow = true; decorMesh.castShadow = true; scene.add(decorMesh);
+applyBlobbyToonMaterial(decorMat, { top: 0xf5e8dd, bottom: 0xcdbda9, gloss: 0.08, rim: 0.05, ambient: 0.44 });
+chunked(DEC_CH, decorMat);
 export const waterMat = new THREE.MeshLambertMaterial({ color: 0x5fb3d9, vertexColors: true, transparent: true, opacity: 0.74, side: THREE.DoubleSide });
-const waterMesh = finish(WAT, waterMat); waterMesh.receiveShadow = true; scene.add(waterMesh);
+applyBlobbyToonMaterial(waterMat, { top: 0xb7d8ee, bottom: 0x87b4d0, gloss: 0.14, rim: 0.08, ambient: 0.5 });
+const waterMesh = finish(WAT, waterMat); waterMesh.receiveShadow = true; scene.add(freeze(waterMesh));
+const applyTerrainPath = (smooth: boolean) => {
+  TERR_MESHES.forEach(m => m.visible = true); // keep stable base terrain while smooth pass iterates
+  smoothTerrainMesh.visible = smooth;
+};
+applyTerrainPath(isSmoothToonRenderer());
+onSmoothToonRendererChange(applyTerrainPath);
 
 export const UNIT = new THREE.BoxGeometry(1, 1, 1);
 function buildBoxes(list, mat, cast = true) {
@@ -109,7 +131,8 @@ function buildBoxes(list, mat, cast = true) {
   return m;
 }
 const boxMat = new THREE.MeshLambertMaterial();
-scene.add(buildBoxes(boxes, boxMat));
+applyBlobbyToonMaterial(boxMat, { top: 0xf6e9de, bottom: 0xd0bfab, gloss: 0.2, rim: 0.1, ambient: 0.44 });
+scene.add(freeze(buildBoxes(boxes, boxMat)));
 const bedBoxes: number[][] = [];
 for (const bd of BEDS) {
   for (let lx = -bd.a; lx <= bd.a; lx += 1.6) for (let lz = -bd.b; lz <= bd.b; lz += 1.6) {
@@ -118,7 +141,7 @@ for (const bd of BEDS) {
     bedBoxes.push([x, DECK + h / 2, z, 1.7, h, 1.7, jit(r < 0.78 ? bd.cush : bd.rim, 0.035), bd.rot]);
   }
 }
-export const bedMesh = buildBoxes(bedBoxes, boxMat); scene.add(bedMesh);
+export const bedMesh = buildBoxes(bedBoxes, boxMat); scene.add(freeze(bedMesh));
 const shBoxes: number[][] = [], sb = (x, y, z, sx, sy, sz, c) => shBoxes.push([x, y, z, sx, sy, sz, jit(c, 0.04), 0]);
 {
   const W = SH.x1 - SH.x0, hAt = x => x < SH.x1 + 8 ? SH.hBack + (SH.hFront - SH.hBack) * ((Math.min(x, SH.x1) - SH.x0) / W) : SH.hFront - 1.6;
@@ -154,19 +177,23 @@ shMat.onBeforeCompile = sh => {
     // looking at someone under the shelter from above: the roof thins to a faint lattice
     if (uRoof > 0.0 && vWP.y > 25.0 && n < uRoof * 0.86) discard;`);
 };
-const shelterMesh = buildBoxes(shBoxes, shMat); scene.add(shelterMesh);
+applyBlobbyToonMaterial(shMat, { top: 0xf1e1d2, bottom: 0xc29f7f, gloss: 0.12, rim: 0.04, ambient: 0.42 });
+const shelterMesh = buildBoxes(shBoxes, shMat); scene.add(freeze(shelterMesh));
 // a lantern under the shelter roof that glows warm after dark
 export const lantern = new THREE.PointLight(0xffc27a, 0, 95, 1.6);
 lantern.position.set(-73, 17, 0); scene.add(lantern);
 export const lanternMat = new THREE.MeshLambertMaterial({ color: 0x3a2a1a, emissive: 0xffc27a, emissiveIntensity: 0 });
+applyBlobbyToonMaterial(lanternMat, { top: 0xffd7a0, bottom: 0x8d5f34, gloss: 0.35, rim: 0.12, ambient: 0.48 });
 { const g = new THREE.Group(); const glass = new THREE.Mesh(UNIT, lanternMat); glass.scale.set(2.6, 3.4, 2.6); g.add(glass);
   const cap = new THREE.Mesh(UNIT, new THREE.MeshLambertMaterial({ color: 0x2a2420 })); cap.scale.set(3.2, 0.7, 3.2); cap.position.y = 2; g.add(cap);
   const cord = new THREE.Mesh(UNIT, new THREE.MeshLambertMaterial({ color: 0x2a2420 })); cord.scale.set(0.3, 6, 0.3); cord.position.y = 5.3; g.add(cord);
-  g.position.set(-73, 22, 0); scene.add(g); }
+  g.position.set(-73, 22, 0); scene.add(g); g.traverse(o => freeze(o)); }
 export const ballMesh = buildBoxes(ballBoxes, boxMat); ballMesh.position.set(BALL.x, BALL_R, BALL.z); scene.add(ballMesh);
+attachEntityOutline(ballMesh, 0.045);
 
 // clouds
 export const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x58616e});
+applyBlobbyToonMaterial(cloudMat, { top: 0xffffff, bottom: 0xe4e9f0, gloss: 0.04, rim: 0.03, ambient: 0.62 });
 export const clouds: THREE.Group[] = [];
 for (let i = 0; i < 14; i++) {
   const parts = [[0, 0, 0, rr(36, 52), rr(10, 14), rr(24, 32), 0xffffff]];

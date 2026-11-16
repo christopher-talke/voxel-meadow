@@ -3,6 +3,8 @@ import * as THREE from 'three';
 function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 export const rand = mulberry32(20261110);
 export const rr = (a, b) => a + (b - a) * rand();
+/** A separate repeatable stream, so new features don't shift the shared sequence (and with it the meadow's layout). */
+export function seeded(seed: number) { const r = mulberry32(seed); return { rand: r, rr: (a: number, b: number) => a + (b - a) * r() }; }
 export function hash(i, j, s) { let n = (Math.imul(i, 374761393) + Math.imul(j, 668265263) + Math.imul(s, 982451653)) | 0; n = Math.imul(n ^ (n >>> 13), 1274126177); n ^= n >>> 16; return (n >>> 0) / 4294967296; }
 export function noise(x, z, s = 0) {
   const i = Math.floor(x), j = Math.floor(z), fx = x - i, fz = z - j;

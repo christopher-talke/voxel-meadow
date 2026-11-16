@@ -21,16 +21,17 @@ export function nearestWalk(x, z, land = false, maxR = 14) {
 }
 const gS = new Float32Array(N * N), par = new Int32Array(N * N), seen = new Uint32Array(N * N), closed = new Uint32Array(N * N);
 let stampN = 0, hI = new Int32Array(1 << 16), hF = new Float32Array(1 << 16), hn = 0;
+function hswap(a, b) { const ti = hI[a]; hI[a] = hI[b]; hI[b] = ti; const tf = hF[a]; hF[a] = hF[b]; hF[b] = tf; }
 function hpush(i, f) {
   if (hn >= hI.length) { const a = new Int32Array(hI.length * 2); a.set(hI); hI = a; const b = new Float32Array(hF.length * 2); b.set(hF); hF = b; }
   let k = hn++; hI[k] = i; hF[k] = f;
-  while (k > 0) { const p = (k - 1) >> 1; if (hF[p] <= hF[k]) break; [hI[p], hI[k]] = [hI[k], hI[p]]; [hF[p], hF[k]] = [hF[k], hF[p]]; k = p; }
+  while (k > 0) { const p = (k - 1) >> 1; if (hF[p] <= hF[k]) break; hswap(p, k); k = p; }
 }
 function hpop() {
   const top = hI[0]; hn--;
   if (hn > 0) {
     hI[0] = hI[hn]; hF[0] = hF[hn]; let k = 0;
-    for (;;) { const l = 2 * k + 1, r = l + 1; let m = k; if (l < hn && hF[l] < hF[m]) m = l; if (r < hn && hF[r] < hF[m]) m = r; if (m === k) break; [hI[m], hI[k]] = [hI[k], hI[m]]; [hF[m], hF[k]] = [hF[k], hF[m]]; k = m; }
+    for (;;) { const l = 2 * k + 1, r = l + 1; let m = k; if (l < hn && hF[l] < hF[m]) m = l; if (r < hn && hF[r] < hF[m]) m = r; if (m === k) break; hswap(m, k); k = m; }
   }
   return top;
 }

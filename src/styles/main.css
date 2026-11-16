@@ -16,13 +16,14 @@
 :root[data-theme="dark"] { --bg: #1a2138; --chip: rgba(22, 28, 40, 0.66); --chip-ink: #edf2ea; --chip-line: rgba(255, 255, 255, 0.12); color-scheme: dark; }
 *, *::before, *::after { box-sizing: border-box; }
 html, body { height: 100%; }
-body { background: var(--bg); color: var(--chip-ink); font-family: var(--body); overflow: hidden; }
+body { margin: 0; background: var(--bg); color: var(--chip-ink); font-family: var(--body); overflow: hidden; }
 #app { position: relative; height: 100%; overflow: hidden; }
 #stage { position: absolute; inset: 0; }
-#stage canvas { display: block; width: 100%; height: 100%; touch-action: none; outline: none; }
+#stage canvas { display: block; width: 100%; height: 100%; touch-action: none; outline: none; border: 0; }
 #stage.pointer canvas { cursor: pointer; }
 
 #tags { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+#tags[hidden] { display: none; }
 .tag { position: absolute; left: 0; top: 0; transform: translate(-50%, -100%); text-align: center; white-space: nowrap; will-change: transform; transition: opacity 0.4s; }
 .tag b { display: block; font: 500 17px/1.1 var(--display); color: var(--tag); letter-spacing: 0.02em; text-shadow: 0 1px 2px var(--tag-shadow), 0 0 10px var(--tag-shadow); opacity: 0.88; }
 .tag i { display: block; font: 700 12.5px/1.3 var(--body); font-style: normal; color: var(--tag-sub); text-shadow: 0 1px 2px var(--tag-shadow), 0 0 8px var(--tag-shadow); opacity: 0; transition: opacity 0.6s; margin-top: 2px; }
@@ -62,4 +63,9 @@ button:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
 
 .hint { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); width: max-content; max-width: min(520px, calc(100% - 32px)); margin: 0; padding: 9px 16px; border-radius: 14px; background: var(--chip); border: 1px solid var(--chip-line); text-align: center; font: 700 13.5px/1.45 var(--body); color: var(--chip-ink); pointer-events: none; transition: opacity 1.2s; text-wrap: balance; }
 .hint.gone { opacity: 0; }
+:root[data-wallpaper="1"] .ctrl,
+:root[data-wallpaper="1"] .menu,
+:root[data-wallpaper="1"] #joy,
+:root[data-wallpaper="1"] #tags,
+:root[data-wallpaper="1"] .hint { display: none !important; }
 @media (prefers-reduced-motion: reduce) { .tag, .tag i, .hint { transition: none; } }
