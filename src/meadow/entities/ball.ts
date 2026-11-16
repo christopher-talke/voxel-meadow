@@ -1,13 +1,13 @@
 import type { Dog } from './dog';
 import * as THREE from 'three';
-import { state } from '../engine/core/state';
-import { V2, clamp, rand, rr } from '../engine/core/util';
-import { G, cellIdx, cols } from '../engine/terrain/grid';
-import { GRAV } from '../engine/core/scale';
+import { state } from '../../engine/core/state';
+import { V2, clamp, rand, rr } from '../../engine/core/util';
+import { G, cellIdx, cols } from '../../engine/terrain/grid';
+import { GRAV } from '../../engine/core/scale';
 import { BALL, BALL_R } from '../world/decor';
 import { ballMesh } from '../world/mesh';
 import { dogs } from './registry';
-import { randLand } from '../engine/nav/path';
+import { randLand } from '../../engine/nav/path';
 import { groundAtXZ } from './behaviours';
 
 // ================= the ball =================

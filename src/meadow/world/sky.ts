@@ -1,4 +1,4 @@
-import { configureSky, underRoof, type PaletteStop } from '../engine/sky/sky';
+import { configureSky, underRoof, type PaletteStop } from '../../engine/sky/sky';
 import { SH, roofTop } from './layout';
 import { WX_SEED, cloudMat, clouds, fireU, groundTop, vcMat, waterMat } from './mesh';
 import { dogs } from '../entities/registry';

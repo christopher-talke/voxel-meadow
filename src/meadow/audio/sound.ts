@@ -1,13 +1,13 @@
 import * as THREE from 'three';
-import { $, V3, clamp, rand, rr, smooth, store } from '../engine/core/util';
-import { camera, focus } from '../engine/render/stage';
+import { $, V3, clamp, rand, rr, smooth, store } from '../../engine/core/util';
+import { camera, focus } from '../../engine/render/stage';
 import { LAKE, SPILL } from '../world/layout';
-import { B } from '../engine/core/scale';
-import { WX, env, underRoof } from '../engine/sky/sky';
+import { B } from '../../engine/core/scale';
+import { WX, env, underRoof } from '../../engine/sky/sky';
 import { ents } from '../entities/registry';
 import { showHint } from '../ui/hint';
-import { hooks } from '../engine/core/hooks';
-import { SND, initSynth, noiseHit, sndNow, sndOut, tone, updateListener } from '../engine/audio/synth';
+import { hooks } from '../../engine/core/hooks';
+import { SND, initSynth, noiseHit, sndNow, sndOut, tone, updateListener } from '../../engine/audio/synth';
 export { SND };
 
 // ================= sound: synthesised ambience and placeholder animal voices (no files needed) =================

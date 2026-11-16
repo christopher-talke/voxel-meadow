@@ -1,9 +1,9 @@
 import * as THREE from 'three';
-import { state } from '../engine/core/state';
-import { rand } from '../engine/core/util';
-import { K } from '../engine/core/scale';
-import { configureCamera, type Shot } from '../engine/camera/camera';
-import { $ } from '../engine/core/util';
+import { state } from '../../engine/core/state';
+import { rand } from '../../engine/core/util';
+import { K } from '../../engine/core/scale';
+import { configureCamera, type Shot } from '../../engine/camera/camera';
+import { $ } from '../../engine/core/util';
 import { SH, roofTop } from '../world/layout';
 import { CHERRY, TREES } from '../world/decor';
 import { groundTop } from '../world/mesh';

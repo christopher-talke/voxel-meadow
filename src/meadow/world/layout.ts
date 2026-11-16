@@ -1,6 +1,6 @@
-import { clamp, lineDist, noise, smooth } from '../engine/core/util';
-import { B } from '../engine/core/scale';
-import { type Col, G, R, cellIdx, colAt, cols, idxOf, initGrid } from '../engine/terrain/grid';
+import { clamp, lineDist, noise, smooth } from '../../engine/core/util';
+import { B } from '../../engine/core/scale';
+import { type Col, G, R, cellIdx, colAt, cols, idxOf, initGrid } from '../../engine/terrain/grid';
 
 // ================= the island layout (block units; scale lives in engine/core/scale.ts) =================
 export const LAKE = { i: 45, j: 40, r: 22 };

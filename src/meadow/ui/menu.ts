@@ -1,13 +1,13 @@
-import { hooks } from '../engine/core/hooks';
-import { state, type TimeMode } from '../engine/core/state';
-import { $, V3, clamp, rr, store } from '../engine/core/util';
-import { camera, stage } from '../engine/render/stage';
-import { WX } from '../engine/sky/sky';
+import { hooks } from '../../engine/core/hooks';
+import { state, type TimeMode } from '../../engine/core/state';
+import { $, V3, clamp, rr, store } from '../../engine/core/util';
+import { camera, stage } from '../../engine/render/stage';
+import { WX } from '../../engine/sky/sky';
 import { ents } from '../entities/registry';
 import { hideHint } from './hint';
 import { SND, tgSound } from '../audio/sound';
 import { timeText } from '../world/clock';
-import { setCamMode } from '../engine/camera/camera';
+import { setCamMode } from '../../engine/camera/camera';
 import { followDog } from './interact';
 
 const WALLPAPER_BUILD = import.meta.env.PROD;

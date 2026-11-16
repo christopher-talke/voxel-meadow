@@ -1,11 +1,11 @@
 import * as THREE from 'three';
-import { smooth } from '../engine/core/util';
-import { scene } from '../engine/render/stage';
-import { block } from '../engine/terrain/grid';
-import { B } from '../engine/core/scale';
+import { smooth } from '../../engine/core/util';
+import { scene } from '../../engine/render/stage';
+import { block } from '../../engine/terrain/grid';
+import { B } from '../../engine/core/scale';
 import { groundTop } from './mesh';
-import { UNIT } from '../engine/render/mesher';
-import { WX, env, simDate } from '../engine/sky/sky';
+import { UNIT } from '../../engine/render/mesher';
+import { WX, env, simDate } from '../../engine/sky/sky';
 
 // ================= the park clock, so the meadow's time is part of the world =================
 export const CLOCK = { x: -44, z: -60 } as { x: number; z: number; g: THREE.Group; head: THREE.Group };

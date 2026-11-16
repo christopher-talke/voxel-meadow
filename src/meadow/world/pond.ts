@@ -1,12 +1,12 @@
 import * as THREE from 'three';
-import { V2, clamp, noise, reduceMotion, seeded, smooth } from '../engine/core/util';
-import { DPR, camera, hemi, scene, sun } from '../engine/render/stage';
+import { V2, clamp, noise, reduceMotion, seeded, smooth } from '../../engine/core/util';
+import { DPR, camera, hemi, scene, sun } from '../../engine/render/stage';
 import { JETTY, LAKE, SPILL, WATER_Y } from './layout';
-import { G, colAt, colXZ, idxOf } from '../engine/terrain/grid';
-import { B } from '../engine/core/scale';
+import { G, colAt, colXZ, idxOf } from '../../engine/terrain/grid';
+import { B } from '../../engine/core/scale';
 import { waterMat } from './mesh';
-import { UNIT } from '../engine/render/mesher';
-import { dropTex, puff } from '../engine/fx/sprites';
+import { UNIT } from '../../engine/render/mesher';
+import { dropTex, puff } from '../../engine/fx/sprites';
 
 // ================= the pond: a waterfall off the island edge, and lily pads =================
 const { rand, rr } = seeded(7310);

@@ -1,19 +1,19 @@
 import type { Dog } from './dog';
 import * as THREE from 'three';
-import { BASE_POSE, PKEYS, SPEED, type Step, type StepOpts, animalMat, animalMeshes, steps } from '../engine/animal/animal';
-import { state } from '../engine/core/state';
-import { V2, V3, clamp, headingTo, lerp, rand, rr, smooth, wrapA } from '../engine/core/util';
-import { scene } from '../engine/render/stage';
+import { BASE_POSE, PKEYS, SPEED, type Step, type StepOpts, animalMat, animalMeshes, steps } from '../../engine/animal/animal';
+import { state } from '../../engine/core/state';
+import { V2, V3, clamp, headingTo, lerp, rand, rr, smooth, wrapA } from '../../engine/core/util';
+import { scene } from '../../engine/render/stage';
 import { FIELD, JETTY, WATER_Y, WOODS, bedTop, deckH, roofTop } from '../world/layout';
-import { G, cellIdx, colAt, colXZ, gyAt, idxOf } from '../engine/terrain/grid';
-import { B, K } from '../engine/core/scale';
+import { G, cellIdx, colAt, colXZ, gyAt, idxOf } from '../../engine/terrain/grid';
+import { B, K } from '../../engine/core/scale';
 import { LOOK, TREES } from '../world/decor';
-import { todKey } from '../engine/sky/sky';
-import { dropTex, puff } from '../engine/fx/sprites';
-import { bankNear, cellPt, nearestWalk, randLand } from '../engine/nav/path';
+import { todKey } from '../../engine/sky/sky';
+import { dropTex, puff } from '../../engine/fx/sprites';
+import { bankNear, cellPt, nearestWalk, randLand } from '../../engine/nav/path';
 import { SHALLOWS } from '../world/layout';
 import { PAD_CHAIN, PAD_END, PAD_START, padY, type Pad } from '../world/pond';
-import { WX } from '../engine/sky/sky';
+import { WX } from '../../engine/sky/sky';
 
 // ================= dogs =================
 export const POSES = {

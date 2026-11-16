@@ -1,11 +1,11 @@
 import * as THREE from 'three';
-import { clamp, jit, mixHex, noise, rand, rr } from '../engine/core/util';
-import { DPR, scene } from '../engine/render/stage';
+import { clamp, jit, mixHex, noise, rand, rr } from '../../engine/core/util';
+import { DPR, scene } from '../../engine/render/stage';
 import { BEDS, DECK, FIELD, POLE, SH, SHELTER_POSTS } from './layout';
-import { colAt, colXZ, cols, isWaterCol } from '../engine/terrain/grid';
-import { B } from '../engine/core/scale';
+import { colAt, colXZ, cols, isWaterCol } from '../../engine/terrain/grid';
+import { B } from '../../engine/core/scale';
 import { BALL, BALL_R, CHERRY, ballBoxes, boxes, decor } from './decor';
-import { UNIT, applyCutaway, buildBoxes, chunks, cutU, finish, freeze, makeMesher, meshColumns, meshVoxels } from '../engine/render/mesher';
+import { UNIT, applyCutaway, buildBoxes, chunks, cutU, finish, freeze, makeMesher, meshColumns, meshVoxels } from '../../engine/render/mesher';
 
 // ================= the island's meshes, built with the engine mesher =================
 const WAT = makeMesher();

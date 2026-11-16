@@ -17,38 +17,35 @@ Dependency versions are in `package.json` and `package-lock.json`. Strict TypeSc
 
 ## 3. Repository map
 
-- `index.html` — static DOM shell, settings controls, name tags, external font links, and `/src/main.ts` entry.
-- `src/main.ts` — composition root; imports CSS and modules in dependency order.
-- `src/core/` — shared mutable `state`, deterministic math/random helpers, safe storage/DOM access, and late-bound `hooks`.
-- `src/render/stage.ts` — WebGL renderer, scene, camera, OrbitControls, lights, fog, sky, and stars.
-- `src/world/` — procedural terrain/walk grid (`layout.ts`), voxel geometry and scene props (`mesh.ts`, `decor.ts`), clock, and whistle.
-- `src/sim/sky.ts` — simulated wall clock, sun/moon positions, weather, lighting, palettes, fog, rain, and material updates.
-- `src/entities/` — `Dog` rig/locomotion/poses, shared behaviour factories/personas, roster and registry, ball, and cloth simulation.
-- `src/nav/path.ts` — weighted eight-direction A*, traversal checks, and line-of-sight path smoothing.
-- `src/camera/camera.ts` — follow, orbit, free, and cinematic camera behaviour.
-- `src/audio/sound.ts` — lazily initialized Web Audio synthesis and ambient/SFX state.
-- `src/ui/` — raycast/drag interaction, menu, name tags, and hints.
-- `src/app/loop.ts` — frame orchestration, world stepping, camera updates, and rendering.
-- `src/app/debug.ts` / `src/globals.d.ts` — optional `window.MEADOW` test/debug interface.
-- `src/styles/main.css` — full-screen UI, floating tags, responsive controls, and accessibility media rules.
-- `assets/rig.json` — generated runtime animal rig data imported by `entities/roster.ts`; `.vox` files are asset exports and are not directly imported by `src`.
+The code is a library and an app: `src/engine` is the reusable engine, `src/meadow` is Voxel Meadow built on it. `tools/check-boundary.mjs` (run by `npm run typecheck`) fails if anything in `src/engine` imports from outside it. See `src/engine/README.md` for the engine's public API and what a content package provides.
+
+- `index.html` — static DOM shell, settings controls, name tags, and the `/src/meadow/main.ts` entry.
+- `src/engine/core/` — `scale.ts` (the only scale authority: `UNIT_CM`, `B`, `K`, `GRAV`), seeded random and math helpers, shared `state`, late-bound `hooks`.
+- `src/engine/terrain/grid.ts` — column grid and walk grid, sized by `initGrid()` from the content.
+- `src/engine/nav/path.ts` — weighted eight-direction A*, nearest-walkable and random-land queries.
+- `src/engine/render/` — `stage.ts` (renderer, scene, camera, controls, lights, fog, sky dome, stars) and `mesher.ts` (voxel/column meshing, chunking, instanced boxes, see-through cutaway).
+- `src/engine/sky/sky.ts` — sim clock, sun and moon, weather, rain; bound with `configureSky()`.
+- `src/engine/camera/camera.ts` — follow, group, free, cinematic and auto camera; bound with `configureCamera()`.
+- `src/engine/animal/animal.ts` — `Animal` (rig, locomotion, gait, gaze, pose blending, wetness, step queue) and generic steps.
+- `src/engine/audio/synth.ts`, `src/engine/input/pointer.ts`, `src/engine/fx/` — synth primitives, pointer ray/taps/ground pick, sprite puffs and wet fur.
+- `src/engine/app/loop.ts` — frame loop with a fixed hook order; started with `startLoop()`.
+- `src/meadow/` — the island (`world/`), the five animals, personas and behaviours (`entities/`), the meadow's camera shots, sound, UI chrome, CSS, loop hooks, `app/debug.ts` (`window.MEADOW`) and `main.ts` (composition root).
+- `assets/rig.json` — generated runtime animal rig data imported by `meadow/entities/roster.ts`; `.vox` files are asset exports and are not directly imported by `src`.
 - `tools/` — Python model/rig generators. Run generators from `tools/` because they use relative inputs/outputs. `tools/build.py` and `tools/vox_export.py` contain legacy assumptions; see constraints below.
-- `test/` — standalone Playwright inspection/soak/screenshot scripts, not a unified assertion-based runner. `test/common.py` points tests at `dist/index.html` and supports `THREE_DIR`.
-- `dist/`, `node_modules/`, screenshots, and Python caches — generated/ignored output.
+- `test/` — Playwright scripts. `baseline.py`/`compare.py` capture and diff a world fingerprint, a 600 s behaviour trace and fixed-camera stills; `camsmoke.py`, `propshot.py`, `wetshot.py`, `beyondshot.py` render checks. `test/common.py` picks the browser (`CHROME`) and bundle (`MEADOW_DIST`).
+- `dist/`, `node_modules/`, `.venv/`, `test/baseline/`, screenshots, and Python caches — generated/ignored output.
 
 ## 4. Architecture and key flow
 
-Initialization is side-effectful: imports construct the renderer and world, populate entity registries, attach DOM handlers, and start the frame loop. Cross-module writes belong in `core/state.ts`; entity collections live in `entities/registry.ts`; `core/hooks.ts` breaks low-level-to-high-level import cycles. `V3` is a shared scratch vector, so callers must consume/copy it before another operation reuses it.
+Initialization is side-effectful: imports construct the renderer and world, populate entity registries, attach DOM handlers, and start the frame loop. Engine modules that need the world are bound once by the content (`configureSky`, `configureCamera`, `startLoop`) and make no draws from the shared random stream at load. One shared seeded `rand` stream drives world generation and the animals, so module evaluation order shapes the world: any refactor must leave `MEADOW.fingerprint()` and `MEADOW.trace()` unchanged. `V3` is a shared scratch vector, so callers must consume/copy it before another operation reuses it.
 
 **Ground-tap flow:**
 
-1. `ui/interact.ts` handles `pointerup`, builds a camera ray with `pointerRay`, and calls `pickGround` when no object is selected.
+1. `meadow/ui/interact.ts` handles `pointerup`, uses the engine's `isTap` and `pointerRay`, and calls `pickGround` when no object is selected.
 2. `goTo(x, z)` classifies the terrain destination, chooses a lead dog, and interrupts its behaviour with an adventure step queue.
-3. `Dog.update` consumes queued behaviour steps and requests routes with `findPath` when a movement goal needs one.
-4. `nav/path.ts` searches the walkability/cost grid built by `world/layout.ts`; locomotion then applies turning, speed, avoidance, terrain height, gait, and pose blending.
-5. `app/loop.ts` calls every entity and subsystem update, advances weather/camera/audio/effects, updates tags and cloth, and finishes with `renderer.render(scene, camera)`.
-
-Other boundaries follow the same imperative model: settings handlers update shared state and persist preferences; `sim/sky.ts` pushes environmental values into Three.js materials/lights; audio initializes only after user activation; `window.MEADOW.advance` can deterministically step simulation time for tests.
+3. `Animal.update` consumes queued steps and requests routes with `findPath` when a movement goal needs one; the meadow `Dog` supplies `pick()`, `think()` and the other hooks.
+4. Locomotion applies turning, speed, avoidance, ground height, gait, and pose blending.
+5. The engine loop calls the meadow's `step`, `visuals`, `late` and `beforeRender` hooks around the camera, then renders.
 
 ## 5. Development workflow
 

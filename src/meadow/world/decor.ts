@@ -1,8 +1,8 @@
-import { DK } from '../engine/render/mesher';
-import { hash, jit, lineDist, noise, rand, rr } from '../engine/core/util';
+import { DK } from '../../engine/render/mesher';
+import { hash, jit, lineDist, noise, rand, rr } from '../../engine/core/util';
 import { BEDS, CLIMB, CREEK, FIELD, HILL, JETTY, LAKE, PATHS, POLE, SHELTER_POSTS, WOODS, blanketToWorld, onBed, onBlanket, onShelter } from './layout';
-import { G, block, blockRect, colAt, cols, idxOf, inGrid, isWaterCol } from '../engine/terrain/grid';
-import { B } from '../engine/core/scale';
+import { G, block, blockRect, colAt, cols, idxOf, inGrid, isWaterCol } from '../../engine/terrain/grid';
+import { B } from '../../engine/core/scale';
 
 // ================= decor voxels (block grid) and small boxes =================
 export const decor = new Map();

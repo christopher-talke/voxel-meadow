@@ -1,5 +1,5 @@
-import { crowd } from '../engine/animal/animal';
-import RIG from '../../assets/rig.json';
+import { crowd } from '../../engine/animal/animal';
+import RIG from '../../../assets/rig.json';
 import { cats, dogs, ents } from './registry';
 import { PERSONA } from './behaviours';
 import { Dog } from './dog';
