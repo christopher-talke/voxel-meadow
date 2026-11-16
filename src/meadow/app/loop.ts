@@ -23,6 +23,9 @@ import { mistU, updatePond } from '../world/pond';
 import { clothCheck, ringMesh } from '../ui/interact';
 import { updateTags } from '../ui/menu';
 import { updateBeyond } from '../world/beyond';
+import { livelyStep } from '../entities/lively';
+import { updateAgents } from '../../engine/ambient/agents';
+import '../world/wildlife';
 
 export { ORBIT, adaptState, fitOrbit, stepWorld };
 
@@ -31,6 +34,8 @@ export { ORBIT, adaptState, fitOrbit, stepWorld };
 function step(dt: number) {
   dogs.forEach(d => d.update(dt, state.T));
   cats.forEach(d => d.update(dt, state.T));
+  livelyStep(dt);
+  updateAgents(dt);
   updateBall(dt);
   for (const c of CLOTHS) c.step(dt);
   clothCheck(dt);

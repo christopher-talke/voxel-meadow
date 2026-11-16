@@ -69,3 +69,9 @@ Object.assign(window.MEADOW, {
 });
 import { getDirector, setDirector } from '../../engine/director/director';
 Object.assign(window.MEADOW, { setDirector, getDirector });
+import { LIVELY, setLively } from '../entities/lively';
+import { temperament, temperMul } from '../entities/temperament';
+import { memoryMul } from '../entities/memory';
+Object.assign(window.MEADOW, { setLively, get lively() { return LIVELY.on; }, temperament, temperMul, memoryMul });
+import { agentsOf } from '../../engine/ambient/agents';
+Object.assign(window.MEADOW, { agentsOf });

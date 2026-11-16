@@ -11,6 +11,7 @@ import { BALL_R } from '../world/decor';
 import { UNIT } from '../../engine/render/mesher';
 import { WX, todKey, underRoof } from '../../engine/sky/sky';
 import { cats, dogs, ents } from './registry';
+import { closeEpisode, openEpisode } from './memory';
 import { SFX, SND, sndActivity } from '../audio/sound';
 import { dropTex, heartTex, puff, zTex } from '../../engine/fx/sprites';
 import { type WetUniforms, dampMark, wetFur, wetRand } from '../../engine/fx/wet';
@@ -28,6 +29,7 @@ const IDLE_POSE = new Set(['stand', 'sniff', 'sit']), SNUG = new Set(['lie', 'sl
 export class Dog extends Animal {
   /** Recent episodes, newest last (see memory.ts). */
   episodes: Episode[] = [];
+  ep: { key: string; t0: number; with?: string; at: [number, number] } | null = null;
   declare ambushCd: number;
   declare dryT: any;
   declare fishM: THREE.Group;
@@ -60,7 +62,8 @@ export class Dog extends Animal {
     super(idx, data, Object.assign({ poses: POSES }, o));
     if (this.p.cat) { this.fishM = mkFish(); this.fishM.scale.setScalar(2.1); this.fishM.position.set(9, -4, 0); this.fishM.visible = false; this.headJ.add(this.fishM); }
   }
-  setQueue(steps: Step[], key: string | null) { this.spotInfo = null; super.setQueue(steps, key); }
+  setQueue(steps: Step[], key: string | null) { this.spotInfo = null; if (this.ep) closeEpisode(this, 'interrupted'); if (key) openEpisode(this, key); super.setQueue(steps, key); }
+  interrupt(steps: Step[], key: string | null) { closeEpisode(this, 'interrupted'); super.interrupt(steps, key); }
   interruptPrelude(): Step[] {
     const pre: any[] = [];
     if (this.elevT > 0) pre.push(S.down());
@@ -143,6 +146,7 @@ export class Dog extends Animal {
       S.hold('sit', 2.5, Object.assign({ text: 'Very pleased with that', onStart: d => { d.wagBoost = 0.9; } }, lk)), S.hold('stand', 0.6)];
   }
   pick() {
+    closeEpisode(this, 'done');
     const badWx = WX.rain > 0.35 || WX.storm > 0.4;
     if (isNight() && !badWx && this.p.cat && rand() < 0.3) { const ck = rand() < 0.5 ? 'climb' : 'perch'; this.setQueue(this.B(ck), ck); return; }
     if (isNight()) { this.setQueue(this.B('bedtime'), 'bedtime'); return; }
