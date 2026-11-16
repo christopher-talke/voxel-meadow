@@ -6,7 +6,7 @@ import { G, colAt, colXZ, cols, idxOf, isWaterCol } from '../engine/terrain/grid
 import { B } from '../engine/core/scale';
 import { UNIT } from '../engine/render/mesher';
 import { PADS, padY, type Pad } from '../world/pond';
-import { env } from '../sim/sky';
+import { env } from '../engine/sky/sky';
 import { ents } from './registry';
 import { SFX, SND } from '../audio/sound';
 import { dropTex, puff } from '../engine/fx/sprites';

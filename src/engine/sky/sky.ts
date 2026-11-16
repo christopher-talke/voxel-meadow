@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { state, TIME_RATE } from "../engine/core/state";
+import { state, TIME_RATE } from "../core/state";
 import {
   clamp,
   lerp,
@@ -9,156 +9,37 @@ import {
   seeded,
   smooth,
   store,
-} from "../engine/core/util";
-import { camera, fog, hemi, scene, skyU, starU, sun } from "../engine/render/stage";
-import { SH, WATER_Y, roofTop } from "../world/layout";
-import { colXZ } from "../engine/terrain/grid";
-import { cloudMat, clouds, fireU, groundTop, vcMat, waterMat } from "../world/mesh";
-import { dogs } from "../entities/registry";
-import { hooks } from "../engine/core/hooks";
+} from "../core/util";
+import { camera, fog, hemi, scene, skyU, starU, sun } from "../render/stage";
+import { colXZ } from "../terrain/grid";
+import { hooks } from "../core/hooks";
+import { cols } from "../terrain/grid";
+import { B } from "../core/scale";
 
 // ================= time, sun, moon and weather =================
-// palettes keyed by sun elevation in degrees; everything in between is blended
-// palettes keyed by sun elevation in degrees; sunrise and sunset have their own pastel looks
-const NIGHT_P = {
-  e: -12,
-  top: 0x0b1230,
-  mid: 0x1d2a52,
-  hor: 0x2a3560,
-  bot: 0x18213f,
-  sun: 0x9db2ff,
-  hs: 0x4a5a96,
-  hg: 0x1c2336,
-  hI: 0.5,
-  water: 0x2f4f86,
-  cloudE: 0x161d33,
-};
-const DAY_P = {
-  e: 26,
-  top: 0x3a88d6,
-  mid: 0x86c0ea,
-  hor: 0xbfe0f0,
-  bot: 0x6aaedb,
-  sun: 0xfff3df,
-  hs: 0xe4f3ff,
-  hg: 0x7f9a62,
-  hI: 0.62,
-  water: 0x5fb3d9,
-  cloudE: 0x58616e,
-};
-const PAL_PM = [
-  NIGHT_P, // dusk afterglow, then the big pink sunset
-  {
-    e: -5,
-    top: 0x2b2f6b,
-    mid: 0x7d5c9c,
-    hor: 0xe08aa6,
-    bot: 0x5a3f6a,
-    sun: 0xc0a0ff,
-    hs: 0x8a78b0,
-    hg: 0x2e2a40,
-    hI: 0.46,
-    water: 0x6a5a9a,
-    cloudE: 0x7a4a78,
-  },
-  {
-    e: 0,
-    top: 0x5a63b0,
-    mid: 0xd98cbc,
-    hor: 0xffa9a4,
-    bot: 0xf2b2b2,
-    sun: 0xffa08e,
-    hs: 0xffb8c8,
-    hg: 0x6a5060,
-    hI: 0.54,
-    water: 0xb08ab8,
-    cloudE: 0xc46a86,
-  },
-  {
-    e: 6,
-    top: 0x6480c8,
-    mid: 0xe898bc,
-    hor: 0xffb4a6,
-    bot: 0xffcebe,
-    sun: 0xffb69a,
-    hs: 0xffd0d0,
-    hg: 0x786656,
-    hI: 0.57,
-    water: 0x9fb0d0,
-    cloudE: 0xb4707e,
-  },
-  {
-    e: 14,
-    top: 0x6b9ad8,
-    mid: 0xf6cfc4,
-    hor: 0xffe0c8,
-    bot: 0xffeede,
-    sun: 0xffd4b4,
-    hs: 0xffe6da,
-    hg: 0x7d7458,
-    hI: 0.6,
-    water: 0x7ab8d6,
-    cloudE: 0x8a6a6a,
-  },
-  DAY_P,
-];
-const PAL_AM = [
-  NIGHT_P, // a cooler violet dawn warming to peach and gold
-  {
-    e: -5,
-    top: 0x22346e,
-    mid: 0x6a68a8,
-    hor: 0xe6a0b0,
-    bot: 0x4a4a72,
-    sun: 0xc8b4ff,
-    hs: 0x7a80b4,
-    hg: 0x2a2c42,
-    hI: 0.46,
-    water: 0x5a68a0,
-    cloudE: 0x6a5078,
-  },
-  {
-    e: 0,
-    top: 0x4a6cb4,
-    mid: 0xd896bc,
-    hor: 0xffb08e,
-    bot: 0xf2b8a0,
-    sun: 0xffae74,
-    hs: 0xffcfb8,
-    hg: 0x6a5a50,
-    hI: 0.54,
-    water: 0xa898c0,
-    cloudE: 0xc4787a,
-  },
-  {
-    e: 6,
-    top: 0x5f86cc,
-    mid: 0xe6a6c0,
-    hor: 0xffc08e,
-    bot: 0xffd8b4,
-    sun: 0xffc48e,
-    hs: 0xffe0c8,
-    hg: 0x7a6a52,
-    hI: 0.57,
-    water: 0x98b6d0,
-    cloudE: 0xb07a6e,
-  },
-  {
-    e: 14,
-    top: 0x66a0dc,
-    mid: 0xf2dcc8,
-    hor: 0xffe8c8,
-    bot: 0xfff0dc,
-    sun: 0xffe0b8,
-    hs: 0xffeedc,
-    hg: 0x7f7858,
-    hI: 0.6,
-    water: 0x78b8d8,
-    cloudE: 0x7e6a62,
-  },
-  DAY_P,
-];
-let PAL = PAL_PM;
+/** One sky palette stop, keyed by sun elevation `e` in degrees. Colours are hex; hI is the sky light intensity. */
+export interface PaletteStop { e: number; top: number; mid: number; hor: number; bot: number; sun: number; hs: number; hg: number; hI: number; water: number; cloudE: number }
+/** Everything the sky needs from the world it sits over. Set once by the content with configureSky(). */
+export interface SkyConfig {
+  /** Morning and afternoon palettes, each sorted by sun elevation. */
+  palettes: { am: PaletteStop[]; pm: PaletteStop[] };
+  /** Latitude in degrees (negative south), for the sun and moon paths. */
+  lat: number;
+  /** Height of a roof over this point, or null in the open: rain stops there and animals count as sheltered. */
+  cover(x: number, z: number): number | null;
+  /** Ground or water surface height. */
+  ground(x: number, z: number): number;
+  clouds: THREE.Object3D[];
+  cloudMat: THREE.MeshLambertMaterial; groundMat: THREE.MeshLambertMaterial; waterMat: THREE.MeshLambertMaterial;
+  fireU: { uOp: { value: number } };
+  /** Called on each lightning strike. */
+  onBolt?(): void;
+  /** Starting weather timers, so a content package can keep its own random sequence. */
+  weather?: { left: number; bolt: number };
+}
+let SKY: SkyConfig;
+let PAL_AM: PaletteStop[] = [], PAL_PM: PaletteStop[] = [];
+let PAL: PaletteStop[] = PAL_PM;
 const PKEYS_C = [
   "top",
   "mid",
@@ -199,17 +80,10 @@ const tmpC = new THREE.Color(),
   tmpC2 = new THREE.Color(),
   tmpV = new THREE.Vector3(),
   GREY = new THREE.Color();
-const ICONS = {
-  day: '<circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/>',
-  golden:
-    '<path d="M3 17h18M6.5 17a5.5 5.5 0 0 1 11 0"/><path d="M12 6.5v2M5.2 9.6l1.4 1.4M18.8 9.6l-1.4 1.4M7 20.5h10"/>',
-  night: '<path d="M19.5 14.5A8 8 0 0 1 9.5 4.5a8 8 0 1 0 10 10z"/>',
-  rain: '<path d="M7 15a4.5 4.5 0 1 1 1.2-8.8A5.5 5.5 0 0 1 18.5 9 3.5 3.5 0 0 1 17 15H7z"/><path d="M8 18l-1 2.5M12 18l-1 2.5M16 18l-1 2.5"/>',
-};
 export let todKey = "day";
 // the meadow keeps its own clock: live (matches the viewer's clock) or sped up so a whole day passes while you watch
 
-const LAT = (-30.6 * Math.PI) / 180; // Sandy Beach, NSW
+let LAT = 0;
 export function simDate() {
   return new Date(state.simMs);
 }
@@ -282,12 +156,12 @@ const WX_KIND = {
 export const WX = {
   mode: WX_KIND[store.get("meadow-wx")] ? store.get("meadow-wx") : "auto",
   kind: "clear",
-  left: rr(150, 300),
+  left: 200,
   cover: 0.08,
   rain: 0,
   wind: 0.2,
   storm: 0,
-  boltT: rr(5, 12),
+  boltT: 8,
 };
 if (WX.mode !== "auto") WX.kind = WX.mode;
 function wxNext() {
@@ -381,8 +255,6 @@ scene.add(rainMesh);
 for (let i = 0; i < RAIN_N; i++)
   rainP.push({ u: R.rr(-1, 1), w: R.rr(-1, 1), y: R.rand(), v: R.rr(0.85, 1.15) });
 const rainBox = { c: new THREE.Vector3(), ext: 170, h: 170 };
-// the old rain seeded 1,600 drops from the shared stream; burn the same draws so fish and animals start where they always have
-for (let i = 0; i < 1600 * 4; i++) rand();
 
 // curtains and shafts share one shader: soft falling streaks, tinted toward the fog, fading at top and bottom
 const veilU = {
@@ -420,11 +292,6 @@ for (const [r, a, n] of [[460, 0.2, 260], [1050, 0.32, 420]] as const) {
 }
 const shaftGeo = new THREE.PlaneGeometry(1, 1).translate(0, -0.5, 0);
 const shafts: THREE.Mesh[] = [];
-for (const c of clouds) {
-  const m = new THREE.Mesh(shaftGeo, veilMat(0.42, 14));
-  m.scale.set(R.rr(60, 110), 1, 1); m.position.set(R.rr(-12, 12), -8, R.rr(-8, 8)); m.visible = false;
-  c.add(m); shafts.push(m);
-}
 
 const ripGeo = new THREE.RingGeometry(0.75, 1, 20);
 ripGeo.rotateX(-Math.PI / 2);
@@ -443,12 +310,19 @@ for (let i = 0; i < 46; i++) {
   scene.add(m);
   ripples.push({ m, t: 1, life: 1 });
 }
-// every open-water cell on the island, so ripples land across the whole lake rather than near the camera's focus
-const OPEN_WATER: { x: number; z: number; y: number }[] = [];
-for (let i = -90; i <= 90; i++) for (let j = -90; j <= 90; j++) {
-  const c = colXZ(i * 4, j * 4);
-  if (c && (c.type === "deep" || c.type === "shallow") && !c.jetty) OPEN_WATER.push({ x: i * 4, z: j * 4, y: (c.wl !== null ? c.wl : WATER_Y) + 0.15 });
+/** Bind the sky to a world: palettes, latitude, cover, ground, clouds and the materials it tints. Call once at load. */
+export function configureSky(c: SkyConfig) {
+  SKY = c; PAL_AM = c.palettes.am; PAL_PM = c.palettes.pm; PAL = PAL_PM; LAT = (c.lat * Math.PI) / 180;
+  if (c.weather) { WX.left = c.weather.left; WX.boltT = c.weather.bolt; }
+  for (const cl of c.clouds) {
+    const m = new THREE.Mesh(shaftGeo, veilMat(0.42, 14));
+    m.scale.set(R.rr(60, 110), 1, 1); m.position.set(R.rr(-12, 12), -8, R.rr(-8, 8)); m.visible = false;
+    cl.add(m); shafts.push(m);
+  }
+  // every open-water cell, so ripples land across whole lakes rather than near the camera's focus
+  for (const w of cols) if (w && (w.wade || w.swim) && !w.jetty && w.wl !== null) OPEN_WATER.push({ x: w.i * B, z: w.j * B, y: w.wl + 0.15 });
 }
+const OPEN_WATER: { x: number; z: number; y: number }[] = [];
 const _toCam = new THREE.Vector3();
 function rainUpdate(dt, focus) {
   const on = WX.rain > 0.02;
@@ -486,8 +360,8 @@ function rainUpdate(dt, focus) {
     p.u += (sx * dt) / E;
     if (p.u > 1) p.u -= 2;
     const X = rainBox.c.x + p.u * E, Z = rainBox.c.z + p.w * E;
-    let Y = base + p.y * Hh;
-    if (p.y < 0 || Y < groundTop(X, Z) + 1 || (underRoof(X, Z) && Y < roofTop(X))) {
+    let Y = base + p.y * Hh, cv: number | null;
+    if (p.y < 0 || Y < SKY.ground(X, Z) + 1 || ((cv = SKY.cover(X, Z)) !== null && Y < cv)) {
       p.y = R.rr(0.7, 1); p.u = R.rr(-1, 1); p.w = R.rr(-1, 1);
       continue;
     }
@@ -517,8 +391,8 @@ function rainUpdate(dt, focus) {
     r.m.material.opacity = 0.55 * (1 - r.t);
   }
 }
-export const underRoof = (x, z) =>
-  x > SH.x0 + 2 && x < SH.x1 - 2 && z > SH.z0 + 2 && z < SH.z1 - 2;
+/** True where something roofs this point over. */
+export const underRoof = (x, z) => SKY.cover(x, z) !== null;
 
 function weatherUpdate(dt) {
   if (WX.mode === "auto") {
@@ -544,8 +418,7 @@ function weatherUpdate(dt) {
       setTimeout(() => {
         env.flash = Math.max(env.flash, 0.6);
       }, 160);
-      for (const d of dogs)
-        if (d.p.nervous && !underRoof(d.pos.x, d.pos.y)) d.startle();
+      SKY.onBolt?.();
     }
   }
 }
@@ -612,20 +485,20 @@ export function updateEnv(dt, focus) {
   hemi.color.copy(env.hs);
   hemi.groundColor.copy(env.hg);
   hemi.intensity = env.hI;
-  waterMat.color.copy(env.water).lerp(tmpC.setHex(0x6a7a86), WX.cover * 0.4);
-  cloudMat.emissive.copy(env.cloudE).lerp(tmpC.setRGB(0.9, 0.92, 1), env.flash * 0.75);
-  cloudMat.color.setRGB(
+  SKY.waterMat.color.copy(env.water).lerp(tmpC.setHex(0x6a7a86), WX.cover * 0.4);
+  SKY.cloudMat.emissive.copy(env.cloudE).lerp(tmpC.setRGB(0.9, 0.92, 1), env.flash * 0.75);
+  SKY.cloudMat.color.setRGB(
     1 - 0.45 * WX.cover,
     1 - 0.43 * WX.cover,
     1 - 0.38 * WX.cover,
   );
-  vcMat.color.setRGB(
+  SKY.groundMat.color.setRGB(
     1 - 0.16 * env.wetG,
     1 - 0.14 * env.wetG,
     1 - 0.1 * env.wetG,
   );
   starU.uOp.value = env.stars;
-  fireU.uOp.value = env.fire;
+  SKY.fireU.uOp.value = env.fire;
   // sun and moon discs, placed far out along their directions from the camera
   moonDisc.position.copy(camera.position).addScaledVector(env.moonDir, 3000);
   moonDisc.visible = env.moonDir.y > -0.05;
@@ -640,7 +513,6 @@ export function updateEnv(dt, focus) {
   }
   rainUpdate(dt, focus);
 }
-let icoShown = "";
 export function setTod(k) {
   // jump the meadow clock to a time of day (tests and old saves)
   const d = new Date(state.simMs),

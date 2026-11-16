@@ -6,7 +6,7 @@ import { SH } from '../world/layout';
 import { K } from '../engine/core/scale';
 import { butterflies, clouds, fireU, groundTop, lantern, lanternMat, petalMesh, petals, spawnPetal } from '../world/mesh';
 import { cutU } from '../engine/render/mesher';
-import { env, updateEnv } from '../sim/sky';
+import { env, updateEnv } from '../engine/sky/sky';
 import type { Dog } from '../entities/dog';
 import { cats, dogs, ents } from '../entities/registry';
 import { sndUpdate } from '../audio/sound';

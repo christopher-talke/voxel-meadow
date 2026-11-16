@@ -7,7 +7,7 @@ import { G, cellIdx, cols, gyAt } from '../engine/terrain/grid';
 import { B, K } from '../engine/core/scale';
 import { BALL_R } from '../world/decor';
 import { UNIT } from '../engine/render/mesher';
-import { WX, todKey, underRoof } from '../sim/sky';
+import { WX, todKey, underRoof } from '../engine/sky/sky';
 import { cats, dogs } from './registry';
 import { SFX, SND, sndActivity } from '../audio/sound';
 import { dropTex, heartTex, puff, zTex } from '../engine/fx/sprites';

@@ -7,7 +7,7 @@ import { SH, roofTop } from "../world/layout";
 import { K } from "../engine/core/scale";
 import { CHERRY, TREES } from "../world/decor";
 import { groundTop } from "../world/mesh";
-import { WX, env } from "../sim/sky";
+import { WX, env } from "../engine/sky/sky";
 import { cats, dogs, ents } from "../entities/registry";
 import { showHint } from "../ui/hint";
 import { hooks } from "../engine/core/hooks";

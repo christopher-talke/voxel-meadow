@@ -144,3 +144,9 @@ export const fireU = { uTime: { value: 0 }, uOp: { value: 0 }, uDpr: { value: DP
   }));
   pts.frustumCulled = false; scene.add(pts);
 }
+
+// The sky module used to make these draws from the shared random stream at this point in loading. The engine sky no
+// longer touches that stream, so they happen here instead: the weather's first timers, then the 6,400 draws that once
+// seeded the rain. Everything generated after this (fish, the animals' starting moods) stays exactly where it was.
+export const WX_SEED = { left: rr(150, 300), bolt: rr(5, 12) };
+for (let i = 0; i < 1600 * 4; i++) rand();

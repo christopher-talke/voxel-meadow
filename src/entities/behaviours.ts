@@ -7,12 +7,12 @@ import { FIELD, JETTY, WATER_Y, WOODS, bedTop, deckH, roofTop } from '../world/l
 import { G, cellIdx, colAt, colXZ, gyAt, idxOf } from '../engine/terrain/grid';
 import { B, K } from '../engine/core/scale';
 import { LOOK, TREES } from '../world/decor';
-import { todKey } from '../sim/sky';
+import { todKey } from '../engine/sky/sky';
 import { dropTex, puff } from '../engine/fx/sprites';
 import { bankNear, cellPt, nearestWalk, randLand } from '../engine/nav/path';
 import { SHALLOWS } from '../world/layout';
 import { PAD_CHAIN, PAD_END, PAD_START, padY, type Pad } from '../world/pond';
-import { WX } from '../sim/sky';
+import { WX } from '../engine/sky/sky';
 
 // ================= dogs =================
 const BASE = { lift: 0, pitch: 0, roll: 0, hp: 0, hr: 0, hyb: 0, nkx: 0, nky: 0, tr: 0, tc: 0, fl: 0, fr: 0, bl: 0, br: 0, wag: 0.22, wagSpd: 6, rate: 5 };

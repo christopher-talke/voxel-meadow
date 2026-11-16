@@ -5,7 +5,7 @@ import { block } from '../engine/terrain/grid';
 import { B } from '../engine/core/scale';
 import { groundTop } from './mesh';
 import { UNIT } from '../engine/render/mesher';
-import { WX } from '../sim/sky';
+import { WX } from '../engine/sky/sky';
 
 // ================= the whistle post: a brass whistle on a cord that you tap to call everyone =================
 /** The whistle post: its position, tappable meshes, the swinging cord group and the tap-kick that makes it swing and glow. */

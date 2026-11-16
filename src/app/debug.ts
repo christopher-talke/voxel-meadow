@@ -4,7 +4,7 @@ import { BEDS } from '../world/layout';
 import { G, colAt, cols, idxOf } from '../engine/terrain/grid';
 import { B } from '../engine/core/scale';
 import { TREES } from '../world/decor';
-import { WX, env, moonDisc, setTod, updateEnv } from '../sim/sky';
+import { WX, env, moonDisc, setTod, updateEnv } from '../engine/sky/sky';
 import { cats, dogs } from '../entities/registry';
 import { SFX, SND } from '../audio/sound';
 import { timeText } from '../world/clock';

@@ -2,7 +2,7 @@ import { hooks } from '../engine/core/hooks';
 import { state, type TimeMode } from '../engine/core/state';
 import { $, V3, clamp, rr, store } from '../engine/core/util';
 import { camera, stage } from '../engine/render/stage';
-import { WX } from '../sim/sky';
+import { WX } from '../engine/sky/sky';
 import { ents } from '../entities/registry';
 import { hideHint } from './hint';
 import { SND, tgSound } from '../audio/sound';
