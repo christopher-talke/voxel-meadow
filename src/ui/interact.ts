@@ -16,6 +16,8 @@ import { WHISTLE } from '../world/whistle';
 import { S, dogMeshes } from '../entities/behaviours';
 import { CLOTHS, clothMeshes, saveCloth } from '../entities/cloth';
 import { SB } from '../entities/ball';
+import { isTap, nearestOnScreen, pickGround as pickGroundE, pointerRay, ray } from '../engine/input/pointer';
+export { pointerRay };
 const WALLPAPER_BUILD = import.meta.env.PROD;
 
 export function callThem() { hideHint(); state.camMode = 'both'; whistle(); if (SND.on && SND.ctx) SFX.whistle(); dogs.forEach(d => d.interrupt(d.B('hello'), 'hello')); }
@@ -74,12 +76,6 @@ ringMesh.rotation.x = -Math.PI / 2; scene.add(ringMesh);
 
 function ring(x, z) { ringMesh.position.set(x, groundTop(x, z) + 0.6, z); state.ringT = 1; }
 
-const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
-export function pointerRay(e) {
-  const r = renderer.domElement.getBoundingClientRect();
-  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
-  ray.setFromCamera(ndc, camera);
-}
 export function pickThing() {
   const targets: THREE.Object3D[] = [...dogMeshes, ballMesh, bedMesh, ...clothMeshes, ...CLOCK.g.children, ...CLOCK.head.children, ...WHISTLE.meshes];
   const hits = ray.intersectObjects(targets, false);
@@ -92,31 +88,14 @@ export function pickThing() {
   if (o === bedMesh) { const i = BEDS.reduce((b, bd, k) => Math.hypot(h.point.x - bd.x, h.point.z - bd.z) < Math.hypot(h.point.x - BEDS[b].x, h.point.z - BEDS[b].z) ? k : b, 0); return { kind: 'bed', bed: i }; }
   return { kind: 'dog', dog: o.userData.dog };
 }
-function nearDog(e, px) {
-  const r = renderer.domElement.getBoundingClientRect(); let best: Dog | null = null, bd = px;
-  for (const d of dogs.concat(cats)) {
-    const p = V3.set(d.root.position.x, d.root.position.y + 6, d.root.position.z).project(camera);
-    if (p.z > 1) continue;
-    const dd = Math.hypot((p.x * 0.5 + 0.5) * r.width + r.left - e.clientX, (-p.y * 0.5 + 0.5) * r.height + r.top - e.clientY);
-    if (dd < bd) { bd = dd; best = d; }
-  }
-  return best;
-}
+const nearDog = (e, px) => nearestOnScreen<Dog>(dogs.concat(cats), e, px);
 export function followDog(i) {
   if (state.camMode === i) { state.camMode = 'both'; return; }
   state.camMode = i; state.followZoom = true;
   if (!store.get('meadow-follow-hint')) { store.set('meadow-follow-hint', 1); showHint('Following ' + ents[i].name + '. Tap the name again to let go.', 6000); }
 }
-function pickGround() {
-  const o = ray.ray.origin, d = ray.ray.direction;
-  for (let t = 0; t < 4000; t += 2) {
-    const x = o.x + d.x * t, y = o.y + d.y * t, z = o.z + d.z * t;
-    const c = colXZ(x, z);
-    if (c && y <= (c.wl !== null ? c.wl : c.top * B) + (c.bridge ? 1.6 : 0) + (c.jetty ? 4.2 : 0)) return new THREE.Vector3(x, y, z);
-    if (y < -300) break;
-  }
-  return null;
-}
+// the walking surface for taps: water, the bridges and the jetty deck sit a little above their columns
+const pickGround = () => pickGroundE(c => (c.wl !== null ? c.wl : c.top * B) + (c.bridge ? 1.6 : 0) + (c.jetty ? 4.2 : 0));
 export let down: { x: number; y: number; t: number } | null = null, hoverT = 0, drag: any = null;
 const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), dragPt = new THREE.Vector3();
 function endDrag() { if (!drag) return; clearTimeout(drag.hold); if (drag.moved) { for (const k of drag.ks) drag.cl.grabs.delete(k); saveCloth(); } controls.enabled = true; const d = drag; drag = null; return d; }
@@ -143,7 +122,7 @@ if (!WALLPAPER_BUILD) {
     const dr = endDrag();
     if (dr && (dr.moved || dr.done)) { down = null; return; }
     const touch = e.pointerType === 'touch';
-    if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) < (touch ? 16 : 8) && performance.now() - down.t < (touch ? 650 : 500)) {
+    if (isTap(down, e)) {
       hideHint(); pointerRay(e);
       let th = pickThing();
       const nd = (!th || (th.kind !== 'ball' && th.kind !== 'whistle')) ? nearDog(e, touch ? 52 : 30) : null;
