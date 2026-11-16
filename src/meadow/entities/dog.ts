@@ -163,7 +163,7 @@ export class Dog extends Animal {
       fish: W.fish && !night && FISH.length ? W.fish : 0,
       lilyhop: W.lily && !night && PAD_CHAIN.length > 2 && WX.rain < 0.2 && !(o.lily || o.behaviour === 'lilyhop') ? W.lily : 0,
       ambush: W.ambush && !this.ambushCd && !night && dogs.some(d => d.poseName !== 'sleep') ? W.ambush : 0,
-      tidy: this.tidyTarget() ? this.p.tidy * (1 + 8 * this.tidyTarget()!.mess()) : 0,
+      tidy: this.p.tidy && this.tidyTarget() ? this.p.tidy * (1 + 8 * this.tidyTarget()!.mess()) : 0,   // only Bobby tidies
       grump: this.p.moody && this.mood ? W.grump : 0,
       steal: this.p.eager && bedMade(this.idx) ? 0.6 : 0,
       nap: W.nap * ((this.energy < 0.35 ? 6 : 0.35) + (night ? 3 : 0) + (o.behaviour === 'nap' ? 3 : 0)),

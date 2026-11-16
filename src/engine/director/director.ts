@@ -58,8 +58,9 @@ export function applyDirection(w: Record<string, number>, d: Direction | null, l
 
 /** Choose a key in proportion to its weight. One draw from the shared stream. */
 export function weightedPick(w: Record<string, number>, fallback: string): string {
-  let sum = 0; for (const k in w) sum += w[k];
+  // a missing or broken weight (undefined, NaN, negative) counts as zero rather than poisoning the whole table
+  let sum = 0; for (const k in w) if (w[k] > 0) sum += w[k];
   let r = rand() * sum, key = fallback;
-  for (const k in w) { r -= w[k]; if (r <= 0) { key = k; break; } }
+  for (const k in w) { if (!(w[k] > 0)) continue; r -= w[k]; if (r <= 0) { key = k; break; } }
   return key;
 }
