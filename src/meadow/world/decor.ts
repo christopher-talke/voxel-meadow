@@ -116,14 +116,17 @@ export const LOOK = (() => {
 })();
 {
   const y = LOOK.top * B, bx = LOOK.i * B, bz = (LOOK.j - 3) * B;
-  for (const s of [-1, 1]) for (const dz of [-5, 5]) box(bx + s * 22, y + 6.5, bz + dz, 2.2, 13, 2.2, 0x6b4a32);
-  for (const dz of [-4.5, -1.5, 1.5, 4.5]) box(bx, y + 13.7, bz + dz, 52, 1.4, 2.6, jit(0x9a6e45, 0.04));
-  for (const s of [-1, 1]) box(bx + s * 22, y + 20, bz - 6, 2.2, 14, 2.2, 0x6b4a32);
-  for (const dy of [19, 24]) box(bx, y + dy, bz - 6.4, 52, 3, 1.2, jit(0x8d6340, 0.04));
+  // a garden bench at the same diorama scale as the trees and the shelter (about a third of life size, 55 cm wide),
+  // so it sits in the scene rather than towering over the dogs like a full-size park bench
+  const S = 1 / 3, bb = (dx, dy, dz, sx, sy, sz, col) => box(bx + dx * S, y + dy * S, bz + dz * S, sx * S, sy * S, sz * S, col);
+  for (const s of [-1, 1]) for (const dz of [-5, 5]) bb(s * 22, 6.5, dz, 2.2, 13, 2.2, 0x6b4a32);
+  for (const dz of [-4.5, -1.5, 1.5, 4.5]) bb(0, 13.7, dz, 52, 1.4, 2.6, jit(0x9a6e45, 0.04));
+  for (const s of [-1, 1]) bb(s * 22, 20, -6, 2.2, 14, 2.2, 0x6b4a32);
+  for (const dy of [19, 24]) bb(0, dy, -6.4, 52, 3, 1.2, jit(0x8d6340, 0.04));
   for (const [px, pz] of SHELTER_POSTS) blockRect(px - 2, px + 2, pz - 2, pz + 2);
   blockRect(POLE.x - 2.5, POLE.x + 2.5, POLE.z - 2.5, POLE.z + 2.5);   // posts are solid
   { const sp = BEDS[2]; for (let i = Math.floor((sp.x - 24) / B); i <= Math.ceil((sp.x + 24) / B); i++) for (let j = Math.floor((sp.z - 20) / B); j <= Math.ceil((sp.z + 20) / B); j++) if (inGrid(i, j) && onBed(i * B, j * B, 5)) G.cost[idxOf(i, j)] += 12; }   // dogs walk around the spare bed
-  for (let i = LOOK.i - 7; i <= LOOK.i + 7; i++) for (let j = LOOK.j - 5; j <= LOOK.j - 2; j++) G.walk[idxOf(i, j)] = 0;
+  for (let i = LOOK.i - 3; i <= LOOK.i + 3; i++) for (let j = LOOK.j - 4; j <= LOOK.j - 2; j++) G.walk[idxOf(i, j)] = 0;   // the bench's footprint
 }
 
 // picnic blanket (own mesh so it can be tapped) and ball
@@ -187,7 +190,8 @@ function clearLand(x, z) {
   if (!c || c.type !== 'grass' || c.edge || !G.walk[idxOf(i, j)] || onBlanket(x, z, 3) || onBed(x, z, 4) || onShelter(x, z, 6)) return null;
   return c;
 }
-function flower(x, z, c, col) { const y = c.top * B, h = rr(2.4, 3.6); box(x, y + h / 2, z, 0.5, h, 0.5, jit(0x4f8d3d, 0.06)); box(x, y + h + 0.4, z, 1.2, 0.8, 1.2, jit(col, 0.04)); }
+// wildflowers 7 to 10 cm tall, with a 3 cm head on a 1 cm stem (as fine as a voxel stem reads)
+function flower(x, z, c, col) { const y = c.top * B, h = rr(2.2, 3.2); box(x, y + h / 2, z, 0.3, h, 0.3, jit(0x4f8d3d, 0.06)); box(x, y + h + 0.3, z, 0.9, 0.6, 0.9, jit(col, 0.04)); }
 for (let n = 0, placed = 0; n < 9000 && placed < 380; n++) {
   const a = rand() * 6.283, d = Math.sqrt(rand()) * 330, x = Math.cos(a) * d, z = Math.sin(a) * d;
   if (noise(x * 0.02, z * 0.02, 11) < 0.55) continue;
@@ -204,7 +208,8 @@ for (let n = 0, placed = 0; n < 9000 && placed < 950; n++) {
   if (noise(x * 0.04, z * 0.04, 15) < 0.45) continue;
   const c = clearLand(x, z); if (!c) continue;
   const y = c.top * B;
-  for (let k = 0; k < 3; k++) { const h = rr(1.4, 3.2); box(x + rr(-1.2, 1.2), y + h / 2, z + rr(-1.2, 1.2), 0.7, h, 0.7, jit(c.forest ? 0x4f8a3e : rand() < 0.5 ? 0x5c9a44 : 0x6caa4e, 0.06)); }
+  for (let k = 0; k < 3; k++) { const h = rr(1.0, 2.2); box(x + rr(-1.2, 1.2), y + h / 2, z + rr(-1.2, 1.2), 0.45, h, 0.45,   // grass blades 3 to 7 cm
+      jit(c.forest ? 0x4f8a3e : rand() < 0.5 ? 0x5c9a44 : 0x6caa4e, 0.06)); }
   placed++;
 }
 for (let n = 0, placed = 0; n < 3000 && placed < 230; n++) {
