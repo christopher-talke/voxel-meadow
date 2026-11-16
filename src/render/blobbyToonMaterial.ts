@@ -2,9 +2,11 @@ import * as THREE from 'three';
 import { onSmoothToonRendererChange, isSmoothToonRenderer } from './renderFlags';
 import { sun } from './stage';
 
+type ColorLike = THREE.Color | string | number;
+
 export interface BlobbyToonOptions {
-  top?: THREE.ColorRepresentation;
-  bottom?: THREE.ColorRepresentation;
+  top?: ColorLike;
+  bottom?: ColorLike;
   bands?: [number, number];
   gloss?: number;
   rim?: number;
@@ -23,7 +25,7 @@ function sunDir() {
   return _lightDir;
 }
 
-function setColor(c: THREE.ColorRepresentation | undefined, fallback: number) {
+function setColor(c: ColorLike | undefined, fallback: number) {
   return new THREE.Color(c === undefined ? fallback : c);
 }
 

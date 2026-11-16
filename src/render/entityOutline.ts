@@ -43,8 +43,8 @@ export function attachEntityOutline<T extends THREE.Mesh | THREE.InstancedMesh>(
   if (existing) return existing;
   const mat = makeOutlineMaterial(thickness);
   const ol = (src as THREE.InstancedMesh).isInstancedMesh
-    ? (new THREE.InstancedMesh((src as THREE.InstancedMesh).geometry, mat, (src as THREE.InstancedMesh).count) as T)
-    : (new THREE.Mesh((src as THREE.Mesh).geometry, mat) as T);
+    ? (new THREE.InstancedMesh((src as THREE.InstancedMesh).geometry, mat, (src as THREE.InstancedMesh).count) as unknown as T)
+    : (new THREE.Mesh((src as THREE.Mesh).geometry, mat) as unknown as T);
   ol.renderOrder = src.renderOrder - 0.01;
   ol.frustumCulled = src.frustumCulled;
   ol.castShadow = false;
