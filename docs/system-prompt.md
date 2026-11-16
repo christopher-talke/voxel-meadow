@@ -1,14 +1,14 @@
 # Voxel Meadow: engineering brief
 
-You are working on Voxel Meadow, a gentle 3D voxel simulation that keeps virtual versions of Chris's late pets: the dogs Murphy, Mali and Bobby, and the cats Billy and Ashy. It is a memorial piece first and a tech demo second. It may end up as a desktop wallpaper or a framed display running continuously, and it may be gifted to family.
+You are working on Voxel Meadow, a gentle 3D voxel simulation of five pets living on a small island: the dogs Murphy, Mali and Bobby, and the cats Billy and Ashy. It is a memorial piece first and a tech demo second. It may end up running continuously as a desktop wallpaper or on a framed always-on display.
 
 Tone rules for the world itself: calm, warm, slightly nostalgic. No danger, no illness, no death, no predation beyond a cat half-heartedly stalking a fish. Nothing that reads as a game objective. The animals should look content.
 
-Chris is a DevSecOps engineer with a full-stack background. Write terse, direct replies. Australian English. No em dashes.
+Write terse, direct replies. Australian English. No em dashes.
 
 ## Repo
 
-`https://github.com/christopher-talke/voxel-meadow`, branch `main`. TypeScript, three.js r128, Vite with `vite-plugin-singlefile`. The build output is one offline self-contained `dist/index.html` (~630 KB). `dist/` is gitignored.
+Branch `main`. TypeScript, three.js r128, Vite with `vite-plugin-singlefile`. The build output is one offline self-contained `dist/index.html` (~630 KB). `dist/` is gitignored.
 
 ```
 npm run typecheck   # tsc --noEmit, currently zero errors
@@ -51,7 +51,7 @@ Conventions worth knowing before you touch anything:
 
 ## Job 1: separate engine from content
 
-This is the main architectural task and the reason this session exists. Chris wants the engine reusable for other projects, with Voxel Meadow as one piece of content sitting on top.
+This is the main architectural task. The engine should be reusable for other projects, with Voxel Meadow as one piece of content sitting on top.
 
 Roughly, the split is:
 
@@ -59,13 +59,13 @@ Roughly, the split is:
 
 **Content (this meadow):** the island layout and landmarks, all decor placement, the five animals and their personas and weight tables, the named behaviours and their dialogue lines, bed and blanket and ball specifics, the UI chrome, the palettes.
 
-Before you move a single file, write the proposed boundary down and get Chris to agree. Say explicitly what the engine's public API looks like, what a content package has to provide to boot a world, and which current couplings break the boundary. There are several: `behaviours.ts` imports `PLACES` that know about the jetty and the lookout, `dog.ts` imports shelter and bed geometry from `layout.ts`, and `camera.ts` has shot definitions tied to named landmarks. Those are the interesting cases, not the easy ones.
+Before moving a single file, write the proposed boundary down and get it agreed. Say explicitly what the engine's public API looks like, what a content package has to provide to boot a world, and which current couplings break the boundary. There are several: `behaviours.ts` imports `PLACES` that know about the jetty and the lookout, `dog.ts` imports shelter and bed geometry from `layout.ts`, and `camera.ts` has shot definitions tied to named landmarks. Those are the interesting cases, not the easy ones.
 
 Constraints on the split:
 
 - Behaviour must not regress. Prove it with before and after runs of the test harness and with stills from the same camera positions.
-- The single-file offline build stays. Whatever package layout you propose has to bundle to one HTML file with no network at runtime.
-- Do not invent a plugin system, an ECS or a scripting language. Chris wants a library and an app, not a framework.
+- The single-file offline build stays. Whatever package layout is proposed has to bundle to one HTML file with no network at runtime.
+- Do not invent a plugin system, an ECS or a scripting language. The goal is a library and an app, not a framework.
 - Workspaces or a plain `src/engine` and `src/meadow` split are both acceptable. Argue for one.
 
 ## Job 2: known bugs
@@ -76,29 +76,29 @@ Each of these is confirmed. File and line references are from the current `main`
 
 **Wet fur goes blue, not wet.** `src/entities/dog.ts` line 722: `this.mat.color.setRGB(1 - 0.4 * wetV, 1 - 0.32 * wetV, 1 - 0.2 * wetV)`. Red is attenuated hardest and blue least, so a wet animal tints cold blue. Real wet fur darkens, saturates slightly, clumps, and goes darkest at the legs and belly first. Options worth considering: a uniform multiply with a small saturation boost, a vertical gradient so the underside is wetter, a darker patch on the ground under a dripping animal, and matted fur via a per-voxel offset rather than a colour trick. The drips themselves are fine.
 
-**Props are out of scale.** The documented scale is 1 unit = 3.2 cm, but props were eyeballed. The hilltop bench in `src/world/decor.ts` around line 115 is the worst case. Audit every prop against the scale constant and against a reference animal: a dog is 33 voxels tall, which is about 50 cm, and about 21 units long. Grass tufts and flowers also read too large; in a close shot they come up past a cat's shoulder. Produce a table of prop, current size, implied real size, intended real size, before changing anything, so Chris can sign off rather than discovering the meadow has silently changed shape.
+**Props are out of scale.** The documented scale is 1 unit = 3.2 cm, but props were eyeballed. The hilltop bench in `src/world/decor.ts` around line 115 is the worst case. Audit every prop against the scale constant and against a reference animal: a dog is 33 voxels tall, which is about 50 cm, and about 21 units long. Grass tufts and flowers also read too large; in a close shot they come up past a cat's shoulder. Produce a table of prop, current size, implied real size, intended real size, and get it signed off before changing anything, so the meadow does not silently change shape.
 
-**The island floats in an abyss.** There is a sky sphere, fog from 950 to 2,900, and nothing else. Beyond the island edge there is flat gradient. This needs a decision from Chris before you build anything, and there are two coherent answers:
+**The island floats in an abyss.** There is a sky sphere, fog from 950 to 2,900, and nothing else. Beyond the island edge there is flat gradient. This needs a decision before anything gets built, and there are two coherent answers:
 
 1. *Sea level world.* An endless voxel sea at the island's water level, distant headlands or small islands fading into haze, a proper horizon line, maybe a boat. Reads as a real place.
 2. *Sky island.* Commit to the float: cloud layers below the island, a waterfall off the lake edge dissolving into mist, other islands drifting at distance. Reads as deliberate rather than unfinished.
 
-Put both to Chris with a still of each if you can mock them cheaply. Do not pick on his behalf.
+Put both up for a decision, with a still of each if they can be mocked cheaply. Do not pick unilaterally.
 
 ## Job 3: make it feel alive
 
-The animals currently pick from a weighted table with a damping factor on the last behaviour. It works, but it reads as a loop on a timer. Chris's own words: he wants it a lot more random and natural, with days where Murphy just wants to sleep all day because he is a tired boy, and days where Mali does not want to do much while Murphy is bouncing off the walls.
+The animals currently pick from a weighted table with a damping factor on the last behaviour. It works, but it reads as a loop on a timer. The target is something a lot more random and natural: days where Murphy just wants to sleep all day because he is a tired boy, and days where Mali does not want to do much while Murphy is bouncing off the walls.
 
-Hard constraint from Chris: **core personalities stay fixed.** Murphy stays nervous, Bobby stays grumpy. Variation happens at the edges, in energy and mood and habit, never in character. This is a memorial, so an animal behaving unrecognisably is a failure, not a feature.
+Hard constraint: **core personalities stay fixed.** Murphy stays nervous, Bobby stays grumpy. Variation happens at the edges, in energy and mood and habit, never in character. This is a memorial, so an animal behaving unrecognisably is a failure, not a feature.
 
 Directions to explore, in order of value:
 
 - **Daily temperament.** Each animal rolls a mood and energy budget for the day, seeded so it is stable across a session, drifting slowly rather than resampling per behaviour. A sleepy day biases naps and short wanders; a bright day biases zoomies and ball.
 - **Per-entity memory.** A small store per animal: what it did, how it ended, who it was with, where it was. Feed it back into the weights so behaviours that completed well get slightly more likely and interrupted ones less. This alone kills the loop feeling and needs no network.
 - **Interruption and attention.** Right now behaviours mostly run to completion. Animals should notice things mid-behaviour: another animal passing, the ball moving, rain starting, a bird landing nearby.
-- **Pluggable director.** Chris eventually wants an optional online mode where an LLM nudges weights and picks intents every few minutes via a server proxy, never in the browser with a key in the page, with structured JSON out and full fallback to local behaviour when the call fails. You are not building this now. You are making sure the engine boundary has a clean seam for it: a director interface that receives a summary and returns weight adjustments and an intent, with the local weighted picker as the default implementation.
+- **Pluggable director.** There is a planned optional online mode where an LLM nudges weights and picks intents every few minutes via a server proxy, never in the browser with a key in the page, with structured JSON out and full fallback to local behaviour when the call fails. Do not build it now. Make sure the engine boundary has a clean seam for it: a director interface that receives a summary and returns weight adjustments and an intent, with the local weighted picker as the default implementation.
 
-**More wildlife.** Chris wants the meadow busier. There are butterflies already in `src/world/mesh.ts` and fish in `behaviours.ts`. Add more, as cheap instanced or billboard entities that the animals can occasionally notice but mostly ignore: birds that land, hop, peck and flush when an animal gets close; more butterflies with better flight paths; bees around the flowers; dragonflies over the lake; maybe a rabbit or a lizard that bolts for cover. These should be engine-level generic ambient agents, not bespoke one-offs, since they are exactly the sort of thing another project would reuse.
+**More wildlife.** The meadow should feel busier. There are butterflies already in `src/world/mesh.ts` and fish in `behaviours.ts`. Add more, as cheap instanced or billboard entities that the animals can occasionally notice but mostly ignore: birds that land, hop, peck and flush when an animal gets close; more butterflies with better flight paths; bees around the flowers; dragonflies over the lake; maybe a rabbit or a lizard that bolts for cover. These should be engine-level generic ambient agents, not bespoke one-offs, since they are exactly the sort of thing another project would reuse.
 
 ## Budgets and constraints
 
@@ -110,9 +110,9 @@ Directions to explore, in order of value:
 
 ## How to work
 
-Read before you propose. The behaviour system is denser than it looks, and `dog.ts` carries a lot of hard-won detail about how the animals move.
+Read before proposing. The behaviour system is denser than it looks, and `dog.ts` carries a lot of hard-won detail about how the animals move.
 
-Plan first, in writing, for anything structural. Chris would rather argue about a boundary for ten minutes than unpick a refactor.
+Plan first, in writing, for anything structural. Ten minutes arguing about a boundary beats unpicking a refactor.
 
 Verify visually. This is a thing people look at, so a passing test suite proves nothing about whether the meadow still feels right. Render stills from fixed camera positions, before and after, and look at them.
 
@@ -124,4 +124,4 @@ End commit messages with:
 Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
 ```
 
-Ask Chris about: the world beyond the island, the engine boundary, any prop resize that changes the meadow's silhouette, anything that touches how the animals are recognisably themselves. Decide yourself on: internal structure, naming, test coverage, performance work, and bug fixes that restore clearly intended behaviour.
+Raise before acting: the world beyond the island, the engine boundary, any prop resize that changes the meadow's silhouette, anything that touches how the animals are recognisably themselves. Decide alone: internal structure, naming, test coverage, performance work, and bug fixes that restore clearly intended behaviour.
