@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { state } from '../core/state';
 import { $, rand, rr } from '../core/util';
-const WALLPAPER_BUILD = import.meta.env.PROD;
+const WALLPAPER_BUILD = __WALLPAPER__;
 
 // ================= renderer, scene, camera =================
 export const stage = $('stage');

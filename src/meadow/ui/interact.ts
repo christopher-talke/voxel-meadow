@@ -18,7 +18,7 @@ import { CLOTHS, clothMeshes, saveCloth } from '../entities/cloth';
 import { SB } from '../entities/ball';
 import { isTap, nearestOnScreen, pickGround as pickGroundE, pointerRay, ray } from '../../engine/input/pointer';
 export { pointerRay };
-const WALLPAPER_BUILD = import.meta.env.PROD;
+const WALLPAPER_BUILD = __WALLPAPER__;
 
 export function callThem() { hideHint(); state.camMode = 'both'; whistle(); if (SND.on && SND.ctx) SFX.whistle(); dogs.forEach(d => d.interrupt(d.B('hello'), 'hello')); }
 export function playtime() {

@@ -11,7 +11,7 @@ import { timeText } from '../world/clock';
 import { setCamMode } from '../../engine/camera/camera';
 import { followDog } from './interact';
 
-const WALLPAPER_BUILD = import.meta.env.PROD;
+const WALLPAPER_BUILD = __WALLPAPER__;
 
 // the settings menu: one button, a tidy panel, and it all fades away when you leave it alone
 const menuEl = $('menu'), btnMenu = $('btn-menu'), skyNow = $('skynow');
