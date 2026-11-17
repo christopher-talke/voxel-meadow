@@ -37,6 +37,13 @@ Nothing in `src/engine` may import from outside it (three.js aside). `npm run ty
    (`{ ...BASE_POSE, ... }`) and a persona in the constructor options. Push walkers into `crowd`.
 5. **Loop.** `startLoop({ step, visuals, late, beforeRender, orbit, fit, onDpr, clocks })`.
 
+## Build flag
+
+The engine reads one build-time constant, `__WALLPAPER__` (declared in `src/globals.d.ts`, defined by the content's
+Vite config). When true, `state` starts in the orbit camera on a 20-minute day with tags, auto camera and see-through
+off, OrbitControls are disabled and manual camera input is ignored. When false (dev server, shareable builds) the
+stored preferences and full controls apply.
+
 ## Determinism
 
 Simulation randomness comes from one seeded stream, so the order in which modules load and draw from it shapes the

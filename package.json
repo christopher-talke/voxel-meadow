@@ -8,6 +8,7 @@
     "dev": "vite",
     "typecheck": "tsc --noEmit && node tools/check-boundary.mjs",
     "build": "tsc --noEmit && vite build",
+    "build:pages": "tsc --noEmit && vite build --mode pages",
     "preview": "vite preview",
     "test": "sh -c 'P=python3; [ -x .venv/bin/python ] && P=.venv/bin/python; $P test/soak.py'"
   },

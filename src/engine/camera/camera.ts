@@ -5,7 +5,7 @@ import { COARSE, camera, controls, focus } from "../render/stage";
 import { K } from "../core/scale";
 import { WX, env } from "../sky/sky";
 import { hooks } from "../core/hooks";
-const WALLPAPER_BUILD = import.meta.env.PROD;
+const WALLPAPER_BUILD = __WALLPAPER__;
 
 /** Anything the camera can follow: an animal, usually. */
 export interface CamSubject { name: string; pos: THREE.Vector2; rootY: number; root: THREE.Object3D; [k: string]: any }

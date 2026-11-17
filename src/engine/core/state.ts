@@ -3,7 +3,7 @@ import { store } from './util';
 /** How fast the meadow clock runs against real time. */
 export const TIME_RATE = { live: 1, cycle: 72, fast: 360 } as const;
 export type TimeMode = keyof typeof TIME_RATE;
-const WALLPAPER_BUILD = import.meta.env.PROD;
+const WALLPAPER_BUILD = __WALLPAPER__;
 
 /** Which view the camera is in: everyone, one animal (index), or a scripted mode. */
 export type CamMode = 'both' | 'orbit' | 'cine' | 'free' | number;

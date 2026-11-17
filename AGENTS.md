@@ -2,7 +2,7 @@
 
 ## 1. Project summary
 
-Voxel Meadow is a client-only, interactive 3D memorial meadow for Murphy, Mali, Bobby, Billy, and Ashy. A visitor can watch autonomous animal behaviour, follow animals with several cameras, pat or call them, start play or naps, move them around the island, adjust time and weather, and enable synthesized spatial audio. The intended production artifact is a single `dist/index.html` that can be opened offline. There is no backend, accounts, remote database, or application API. See `README.md` and `index.html`.
+Voxel Meadow is a client-only, interactive 3D memorial meadow for Murphy, Mali, Bobby, Billy, and Ashy. A visitor can watch autonomous animal behaviour, follow animals with several cameras, pat or call them, start play or naps, move them around the island, adjust time and weather, and enable synthesized spatial audio. There are two single-file builds: `dist/index.html` (wallpaper: no UI or input, orbit camera) and `dist-pages/index.html` (shareable on GitHub Pages with the full menu and interaction). Both open offline. There is no backend, accounts, remote database, or application API. See `README.md` and `index.html`.
 
 ## 2. Technology stack
 
@@ -33,7 +33,8 @@ The code is a library and an app: `src/engine` is the reusable engine, `src/mead
 - `assets/rig.json` — generated runtime animal rig data imported by `meadow/entities/roster.ts`; `.vox` files are asset exports and are not directly imported by `src`.
 - `tools/` — Python model/rig generators. Run generators from `tools/` because they use relative inputs/outputs. `tools/build.py` and `tools/vox_export.py` contain legacy assumptions; see constraints below.
 - `test/` — Playwright scripts. `baseline.py`/`compare.py` capture and diff a world fingerprint, a 600 s behaviour trace and fixed-camera stills; `camsmoke.py`, `propshot.py`, `wetshot.py`, `beyondshot.py` render checks. `test/common.py` picks the browser (`CHROME`) and bundle (`MEADOW_DIST`).
-- `dist/`, `node_modules/`, `.venv/`, `test/baseline/`, screenshots, and Python caches — generated/ignored output.
+- `.github/workflows/pages.yml` — builds `dist-pages/` and deploys it to GitHub Pages on push to `main`.
+- `dist/`, `dist-pages/`, `node_modules/`, `.venv/`, `test/baseline/`, screenshots, and Python caches — generated/ignored output.
 
 ## 4. Architecture and key flow
 
@@ -55,12 +56,14 @@ Commands documented in `README.md` and defined in `package.json`:
 npm install          # install JS dependencies
 npm run dev          # Vite development server
 npm run typecheck    # tsc --noEmit
-npm run build        # typecheck, then Vite single-file build to dist/index.html
+npm run build        # typecheck, then wallpaper single-file build to dist/index.html
+npm run build:pages  # typecheck, then full-UI single-file build to dist-pages/index.html
 npm run preview      # preview the Vite production build
 npm test             # python3 test/soak.py; build dist first
 ```
 
 - Tests additionally require Python Playwright and Chrome at `/usr/bin/google-chrome`. `THREE_DIR` can override the default `node_modules/three/` location used by test request routing.
+- Wallpaper versus full UI is the build-time `__WALLPAPER__` constant (declared in `src/globals.d.ts`, set in `vite.config.ts`: true only for `vite build` without `--mode pages`). Gate any new UI or input on it the same way; do not use `import.meta.env.PROD` for this.
 - Run `tools/export_rig.py` from `tools/` to regenerate `assets/rig.json` after model changes; the voxel scripts also write `.vox`/JSON files in that directory.
 - No lint, formatting, CI, deployment, Python dependency manifest, or automated screenshot-test commands were found.
 - **Not executed during familiarization:** install, typecheck, build, or tests. `node_modules/` and `dist/` were absent. Available tooling was Node 24.14.0/npm 11.9.0 on Windows and Python 3.12.3 in WSL; WSL lacked Playwright and `/usr/bin/google-chrome`.
@@ -73,7 +76,7 @@ npm test             # python3 test/soak.py; build dist first
 - Use the existing seeded `rand`/`rr` helpers for simulation randomness when repeatable behaviour matters; audio noise intentionally uses `Math.random`.
 - Reuse `store` for JSON-serialized `meadow-*` preferences and `$` for required static DOM elements. Storage and audio fail soft; a missing required DOM element throws immediately. There is no central logger or error boundary.
 - Preserve touch/coarse-pointer handling, safe-area CSS, and `prefers-reduced-motion` behaviour. UI markup and styles use small DOM nodes and CSS variables rather than components.
-- Treat `assets/rig.json`, `.vox` exports, generator JSON, `dist/`, and test screenshots as generated artifacts; change their source generators rather than hand-editing where applicable.
+- Treat `assets/rig.json`, `.vox` exports, generator JSON, `dist/`, `dist-pages/`, and test screenshots as generated artifacts; change their source generators rather than hand-editing where applicable.
 - `tools/build.py` is stale: it references missing `src/shell.html` and `src/app.js`. Use `npm run build` instead. `tools/vox_export.py` has a hard-coded `/home/claude/export_rig.py` dependency and is not a portable default workflow.
 - Tests commonly print collected `pageerror` values or screenshots rather than asserting them; inspect output instead of treating process exit zero alone as a correctness guarantee.
 
