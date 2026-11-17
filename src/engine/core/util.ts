@@ -16,6 +16,17 @@ export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export const lerp = (a, b, t) => a + (b - a) * t;
 export const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 export const damp = (c, t, r, dt) => c + (t - c) * (1 - Math.exp(-r * dt));
+/** Critically damped spring (SmoothDamp): eases in and out, unlike damp. `lag` is in seconds; a move settles in about three lags. */
+export function spring(s: { x: number; v: number }, target: number, lag: number, dt: number) {
+  const w = 2 / Math.max(1e-4, lag), x = w * dt, e = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x), c = s.x - target, t = (s.v + w * c) * dt;
+  s.v = (s.v - w * t) * e; s.x = target + (c + t) * e; return s.x;
+}
+/** spring() for a Vector3, with its own velocity vector. */
+export function springV(cur: THREE.Vector3, vel: THREE.Vector3, target: THREE.Vector3, lag: number, dt: number) {
+  const w = 2 / Math.max(1e-4, lag), x = w * dt, e = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+  for (const k of ['x', 'y', 'z'] as const) { const c = cur[k] - target[k], t = (vel[k] + w * c) * dt; vel[k] = (vel[k] - w * t) * e; cur[k] = target[k] + (c + t) * e; }
+  return cur;
+}
 export const wrapA = a => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
 export const headingTo = (dx, dz) => Math.atan2(-dz, dx);
 export const V2 = (x, z) => new THREE.Vector2(x, z);
