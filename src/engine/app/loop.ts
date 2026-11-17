@@ -3,7 +3,7 @@ import { state } from '../core/state';
 import { V3, clamp, reduceMotion, spring, springV } from '../core/util';
 import { DPR, camera, controls, focus, renderer, scene, sky, stage, starU } from '../render/stage';
 import { cutU } from '../render/mesher';
-import { autoCamUpdate, camClipBegin, camClipEnd, cineUpdate, focusGoal, freeMove, freeT, hasLineOfSight, type CamSubject } from '../camera/camera';
+import { autoCamUpdate, camClipBegin, camClipEnd, cineUpdate, focusTarget, freeMove, freeT, hasLineOfSight, type CamSubject } from '../camera/camera';
 
 // ================= the frame loop: resize, orbit fit, adaptive resolution, and the fixed order of a frame =================
 // The content fills a LoopConfig with hooks; the engine calls them at fixed points, so a frame always runs in the same order:
@@ -130,7 +130,7 @@ function orbitStep(dt: number) {
 }
 
 export function stepWorld(dt: number) { CFG.step(dt); }
-const _before = new THREE.Vector3();
+const _before = new THREE.Vector3(), followDist = { on: false, x: 0, v: 0 };
 let last = performance.now();
 function frame(now) {
   adaptRes(now - last);
@@ -165,18 +165,24 @@ function tick(dt: number, now: number) {
     controls.enablePan = !following;
     if (!state.gesture) {
       const before = _before.copy(focus);
-      focus.lerp(focusGoal(), 1 - Math.exp(-(following ? 4 : 1.3) * dt));
+      focus.lerp(focusTarget(dt), 1 - Math.exp(-(following ? 4 : 1.3) * dt));
       camera.position.add(V3.copy(focus).sub(before));
       controls.target.copy(focus);
       if (state.followZoom) {   // ease in to a friendly distance when a follow starts
         const off = V3.copy(camera.position).sub(focus), dist = off.length(), want = 80;
-        if (Math.abs(dist - want) < 3) state.followZoom = false; else camera.position.copy(focus).add(off.multiplyScalar((dist + (want - dist) * (1 - Math.exp(-1.6 * dt))) / dist));
+        if (!followDist.on) { followDist.on = true; followDist.x = dist; followDist.v = 0; }
+        spring(followDist, want, 0.8, dt);
+        if (Math.abs(followDist.x - want) < 1 && Math.abs(followDist.v) < 2) state.followZoom = false;
+        if (dist > 1e-3) camera.position.copy(focus).add(off.multiplyScalar(followDist.x / dist));
       }
     }
+    if (!state.followZoom) followDist.on = false;
     if (!reduceMotion && !controls.autoRotate && now - state.lastInteract > 20000) controls.autoRotate = true;
   }
   if (state.camMode !== 'orbit') { state.fogPush *= Math.exp(-1.5 * dt); controls.maxDistance = Math.max(1150, Math.min(controls.maxDistance, camera.position.distanceTo(controls.target))); }
   wasOrbit = orbiting;
+  // idle auto-rotate drifts up to speed over a few seconds rather than starting at full speed
+  controls.autoRotateSpeed = controls.autoRotate ? Math.min(0.25, controls.autoRotateSpeed + dt * 0.25 / 4) : 0;
   freeMove(dt); autoCamUpdate(dt);
   controls.update();
   camClipBegin(dt);

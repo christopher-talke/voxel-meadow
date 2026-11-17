@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { state } from "../core/state";
-import { $, clamp, lerp, rand, store } from "../core/util";
+import { $, clamp, lerp, rand, spring, store } from "../core/util";
 import { COARSE, camera, controls, focus } from "../render/stage";
 import { K } from "../core/scale";
 import { WX, env } from "../sky/sky";
@@ -67,7 +67,9 @@ export function focusGoal() {
   let spread = 0;
   for (const d of dogs)
     spread = Math.max(spread, Math.hypot(d.pos.x - cx, d.pos.y - cz));
-  if (spread > 90) {
+  // split up and rejoin at different spreads, so a group on the edge doesn't flick between the two
+  split = spread > (split ? 75 : 100);
+  if (split) {
     let best = dogs[0],
       bd = 1e9;
     for (const d of dogs) {
@@ -77,10 +79,30 @@ export function focusGoal() {
         best = d;
       }
     }
+    goalKey = "near:" + best.name;
     return goalF.set(best.pos.x, best.rootY + 7, best.pos.y);
   }
   return goalF.set(cx, cy + 7, cz);
 }
+let split = false, goalKey = "", lastKey = "";
+const blendFrom = new THREE.Vector3(), blend = { x: 1, v: 0 };
+/**
+ * Where the follow focus should head this frame: focusGoal(), but when the subject changes (a new animal, the group
+ * splitting or rejoining) it glides there from where it was over a couple of seconds instead of lunging.
+ */
+export function focusTarget(dt: number) {
+  goalKey = String(state.camMode);
+  const g = focusGoal();
+  if (goalKey !== lastKey) {
+    if (lastKey && state.camMode !== "free") { blendFrom.copy(focus); blend.x = blend.v = 0; }
+    lastKey = goalKey;
+  }
+  if (blend.x >= 0.999) return g;
+  spring(blend, 1, 0.75, dt);
+  return g.lerp(blendFrom, 1 - clamp(blend.x, 0, 1));   // lerp from the goal back to the start: goalF is scratch
+}
+/** Skip the glide for the current subject (the view was cut to it under a fade). */
+export function cutFocus() { goalKey = String(state.camMode); focusGoal(); lastKey = goalKey; blend.x = 1; blend.v = 0; }
 
 // ================= camera: cycle, automatic switching, free-cam joystick, no ghosting through terrain =================
 const CAM_ORDER = ["both", 0, 1, 2, 3, 4, "orbit", "cine", "free"];
@@ -484,10 +506,16 @@ export function cineUpdate(dt) {
           best = i;
         }
       });
+      // cut to the follow while the screen is black, already at its friendly distance, then fade up
       state.camMode = best;
-      state.followZoom = true;
+      state.followZoom = false;
       state.autoT = 0;
       cine.shot = null;
+      cutFocus();
+      _near.copy(camera.position).sub(controls.target).setY(0);
+      if (_near.lengthSq() < 1) _near.set(1, 0, 0);
+      _near.normalize().multiplyScalar(72).setY(36);
+      focus.copy(goalF); controls.target.copy(focus); camera.position.copy(focus).add(_near);
       showHint(camName(best), 2200);
     } else cineNext();
   }
