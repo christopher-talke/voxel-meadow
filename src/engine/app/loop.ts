@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { state } from '../core/state';
-import { V3, reduceMotion } from '../core/util';
+import { V3, clamp, reduceMotion, spring, springV } from '../core/util';
 import { DPR, camera, controls, focus, renderer, scene, sky, stage, starU } from '../render/stage';
 import { cutU } from '../render/mesher';
 import { autoCamUpdate, camClipBegin, camClipEnd, cineUpdate, focusGoal, freeMove, freeT, hasLineOfSight, type CamSubject } from '../camera/camera';
@@ -65,9 +65,25 @@ function adaptRes(ms) {
 }
 export const adaptState = ADAPT;
 
-// the orbit leans in towards whoever is doing something, as long as it can see them
-const orbitFocus = { who: null as CamSubject | null, losLost: 0, zoom: 0 };
-const orbitAim = new THREE.Vector3(), orbitCenter = new THREE.Vector3();
+// the orbit leans in on whoever is doing something, as long as it can see them: a wide lap, then an unhurried
+// lean-in, a linger, an ease back out and another wide lap. It never hops from one animal straight to another.
+/** Orbit pacing in seconds. Lags are spring lags: a move settles in about three of them. */
+export const ORBIT_TUNE = {
+  /** Wide lap before the next lean-in may start. */ rest: 20,
+  /** Shortest time close in, even if the subject settles. */ hold: 15,
+  /** Longest time close in, however busy the subject stays. */ maxHold: 60,
+  /** How long the subject may rest (between lily-pad hops, say) before the camera lets go. */ grace: 4,
+  /** How long the subject may be out of sight before the camera lets go. */ losGrace: 3,
+  zoomLag: 2.6, zoomOutLag: 3, aimLag: 0.6, camLag: 0.6,
+  /** Lean-in distance as a share of the fit distance taken off, and the lean-in elevation. */ lean: 0.68, leanEl: 0.36,
+  /** Lap speed in radians per second, slowed while leaning in. */ rate: 0.035,
+};
+type OrbitPhase = 'wide' | 'in' | 'hold' | 'out';
+/** The orbit's state, read by tests: its phase, subject, seconds in phase, and the eased lean-in (0 wide, 1 close). */
+export const orbitDirector = { phase: 'wide' as OrbitPhase, who: null as CamSubject | null, t: 0, rested: 0, losLost: 0, zoom: { x: 0, v: 0 } };
+const orbitAim = new THREE.Vector3(), aim = new THREE.Vector3(), aimV = new THREE.Vector3(), aimGoal = new THREE.Vector3(),
+  camGoal = new THREE.Vector3(), camV = new THREE.Vector3(), tgtV = new THREE.Vector3();
+let wasOrbit = false, orbitShown = false;
 function pickOrbitFocus() {
   let best: CamSubject | null = null, bv = 0;
   for (const e of CFG.orbit.subjects) {
@@ -78,6 +94,39 @@ function pickOrbitFocus() {
     if (v > bv) { bv = v; best = e; }
   }
   return best;
+}
+function orbitStep(dt: number) {
+  const o = orbitDirector, T = ORBIT_TUNE;
+  if (!wasOrbit) {   // a fresh start: a wide lap first, and no speed carried over from last time
+    camV.set(0, 0, 0); tgtV.set(0, 0, 0); o.phase = 'wide'; o.who = null; o.t = o.rested = 0; o.zoom.x = o.zoom.v = 0;
+  }
+  o.t += dt;
+  if (o.phase === 'wide') {
+    o.rested += dt;
+    const who = !reduceMotion && o.rested > T.rest ? pickOrbitFocus() : null;
+    if (who) { o.phase = 'in'; o.who = who; o.t = 0; o.losLost = 0; o.rested = 0; aim.set(who.pos.x, who.rootY + 7, who.pos.y); aimV.set(0, 0, 0); }
+  } else if (o.phase === 'in' || o.phase === 'hold') {
+    const w = o.who!;
+    springV(aim, aimV, aimGoal.set(w.pos.x, w.rootY + 7, w.pos.y), T.aimLag, dt);
+    orbitAim.set(w.pos.x, w.rootY + 8, w.pos.y);
+    o.losLost = hasLineOfSight(camera.position, orbitAim, false) ? 0 : o.losLost + dt;
+    o.rested = CFG.orbit.active(w) ? 0 : o.rested + dt;
+    if (o.phase === 'in' && o.zoom.x > 0.95) { o.phase = 'hold'; o.t = 0; }
+    if (o.losLost > T.losGrace || (o.phase === 'hold' && (o.t > T.maxHold || (o.t > T.hold && o.rested > T.grace)))) { o.phase = 'out'; o.t = 0; }
+  } else if (o.zoom.x < 0.02) { o.phase = 'wide'; o.who = null; o.t = 0; o.rested = 0; }   // 'out' eases back with the aim held where it was
+  const leaning = o.phase === 'in' || o.phase === 'hold', z = clamp(spring(o.zoom, leaning ? 1 : 0, leaning ? T.zoomLag : T.zoomOutLag, dt), 0, 1);
+  // the lap turns about a pivot that slides from the island's centre to the subject, so a lean-in never sweeps past them
+  const d = ORBIT.d * (1 - T.lean * z), el = ORBIT.el + (T.leanEl - ORBIT.el) * z;
+  state.orbitA += dt * T.rate * (1 - 0.42 * z) * (reduceMotion ? 0.5 : 1);
+  const px = aim.x * z, py = aim.y * z, pz = aim.z * z;
+  camGoal.set(px + Math.cos(state.orbitA) * d * Math.cos(el), py + d * Math.sin(el), pz + Math.sin(state.orbitA) * d * Math.cos(el));
+  aimGoal.set(px, py, pz);
+  if (!orbitShown) { orbitShown = true; camera.position.copy(camGoal); controls.target.copy(aimGoal); }   // the first orbit of a visit (the wallpaper opening) starts on the lap, no fly-out
+  springV(camera.position, camV, camGoal, T.camLag, dt);
+  springV(controls.target, tgtV, aimGoal, T.camLag, dt);
+  controls.maxDistance = Math.max(1150, ORBIT.d * 1.08);
+  focus.copy(controls.target); controls.autoRotate = false;
+  state.fogPush += (ORBIT.d - state.fogPush) * (1 - Math.exp(-1.3 * dt));
 }
 
 export function stepWorld(dt: number) { CFG.step(dt); }
@@ -106,37 +155,10 @@ function tick(dt: number, now: number) {
   CFG.visuals?.(dt);
 
   // camera: follow the chosen subject, carrying the camera with it
+  const orbiting = state.camMode === 'orbit' && !state.gesture;
   if (state.camMode === 'cine' && !state.gesture) cineUpdate(dt);
   else if (state.camMode === 'orbit' && !state.gesture) {   // a slow lap, far enough back that the whole island is always in frame
-    const o = orbitFocus;
-    if (o.who) {
-      orbitAim.set(o.who.pos.x, o.who.rootY + 8, o.who.pos.y);
-      if (!CFG.orbit.active(o.who)) o.who = null;
-      else if (hasLineOfSight(camera.position, orbitAim, false)) o.losLost = 0;
-      else {
-        o.losLost += dt;
-        if (o.losLost > 1.5) o.who = null;
-      }
-    }
-    if (!o.who) {
-      o.losLost = 0;
-      o.who = pickOrbitFocus();
-    }
-    const zoomWant = o.who ? 1 : 0;
-    o.zoom += (zoomWant - o.zoom) * (1 - Math.exp(-(zoomWant ? 3.4 : 2.0) * dt));
-    const d = ORBIT.d * (1 - 0.68 * o.zoom),
-      el = ORBIT.el + (0.36 - ORBIT.el) * o.zoom,
-      k = 1 - Math.exp(-1.3 * dt),
-      orbitRate = 0.035 * (1 - 0.42 * o.zoom);
-    state.orbitA += dt * orbitRate;
-    const tx = Math.cos(state.orbitA) * d * Math.cos(el), tz = Math.sin(state.orbitA) * d * Math.cos(el);
-    controls.maxDistance = Math.max(1150, d * 1.08);
-    camera.position.x += (tx - camera.position.x) * k; camera.position.z += (tz - camera.position.z) * k; camera.position.y += (d * Math.sin(el) - camera.position.y) * k;
-    orbitCenter.set(0, 0, 0);
-    if (o.who) orbitAim.set(o.who.pos.x, o.who.rootY + 7, o.who.pos.y);
-    controls.target.lerp(o.who ? orbitCenter.lerp(orbitAim, o.zoom) : orbitCenter, k);
-    focus.copy(controls.target); controls.autoRotate = false;
-    state.fogPush += (ORBIT.d - state.fogPush) * k;
+    orbitStep(dt);
   }
   else if (!state.freezeCam) {
     const following = typeof state.camMode === 'number';
@@ -154,6 +176,7 @@ function tick(dt: number, now: number) {
     if (!reduceMotion && !controls.autoRotate && now - state.lastInteract > 20000) controls.autoRotate = true;
   }
   if (state.camMode !== 'orbit') { state.fogPush *= Math.exp(-1.5 * dt); controls.maxDistance = Math.max(1150, Math.min(controls.maxDistance, camera.position.distanceTo(controls.target))); }
+  wasOrbit = orbiting;
   freeMove(dt); autoCamUpdate(dt);
   controls.update();
   camClipBegin(dt);

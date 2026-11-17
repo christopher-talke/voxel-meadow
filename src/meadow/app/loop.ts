@@ -84,16 +84,21 @@ function beforeRender(dt: number) {
   for (const c of CLOTHS) c.sync();
 }
 
-// the island orbit leans in on whoever is up to something, never on a nap or a quiet sit
+// the island orbit leans in on whoever is up to something, never on a nap or a quiet sit. Scripted moves (lily-pad
+// leaps, roof walks, pole climbs) move by fakeV, and their short stands between hops are part of the show.
 const ORBIT_REST = new Set(['nap', 'catnap', 'sit', 'sunbathe', 'wander', 'sniff', 'drink', 'bedtime', 'shelter']);
+const ORBIT_SHOW = new Set(['lilyhop', 'climb', 'perch', 'fish', 'fishcarry', 'ball', 'zoomies', 'contest', 'ambush', 'chase', 'burst', 'adventure']);
+const speed = (e: Dog) => Math.max(e.v, e.fakeV || 0);
 function isActionState(e: Dog) {
-  const b = e.behaviour;
-  if (!b || ORBIT_REST.has(b)) return false;
   if (e.poseName === 'sleep' || e.poseName === 'lie') return false;
-  if ((e.poseName === 'stand' || e.poseName === 'sniff') && e.v < 7 * K) return false;
+  if (e.lily || e.onRoof || e.swimming || e.elevT > 0.5) return true;
+  const b = e.behaviour;
+  if (b && ORBIT_SHOW.has(b)) return true;
+  if (!b || ORBIT_REST.has(b)) return false;
+  if ((e.poseName === 'stand' || e.poseName === 'sniff') && speed(e) < 7 * K) return false;
   return true;
 }
-const orbitScore = (e: Dog) => (e.swimming ? 1.3 : 0) + (e.free() ? 0 : 1.2) + Math.min(1.4, e.v / (20 * K));
+const orbitScore = (e: Dog) => (e.swimming ? 1.3 : 0) + (e.lily || e.onRoof ? 1 : 0) + (e.free() ? 0 : 1.2) + Math.min(1.4, speed(e) / (20 * K));
 
 startLoop({
   step, visuals, late, beforeRender,

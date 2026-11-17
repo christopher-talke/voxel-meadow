@@ -33,6 +33,17 @@ async def main():
                 await pg.evaluate("window.__SIM_PAUSE = false"); await pg.wait_for_timeout(120)
                 await pg.screenshot(path=f'{FRAMES}-{n:03d}.png'); n += 1
                 await pg.evaluate("window.__SIM_PAUSE = true")
+        # a cat on the lily pads or the roof keeps the camera for as long as the show lasts and it can be seen
+        acts = []
+        for act in ('lilyhop', 'perch'):
+            r = await pg.evaluate('''(act) => { const M = MEADOW, c = M.cats[0], o = M.orbitDirector, out = [];
+              c.forceSlip = false; c.interrupt(c.B(act), act);
+              M.camRun(0.5); o.phase = 'in'; o.who = c; o.t = 0; o.rested = 0; o.losLost = 0;
+              for (let s = 0; s < 70; s++) { M.camRun(1); out.push([s, c.behaviour, c.poseName, o.phase, Math.round(o.losLost * 10) / 10]); if (c.behaviour !== act) break; }
+              return out; }''', act)
+            left = next((x for x in r if x[3] in ('out', 'wide')), None)
+            acts.append((act, left, r[-1]))
+            print(f'{act}: show ran {r[-1][0]}s, camera', f'let go at {left[0]}s ({left[1]}/{left[2]}, los lost {left[4]}s)' if left else 'stayed throughout')
         await b.close()
     sim, cs, ts, ca, ta = 0.0, [], [], [], []
     lean, leans, inLean, start, phases, whos = [], [], False, 0.0, set(), []
@@ -58,6 +69,9 @@ async def main():
     print(f'lean-ins {len(leans)}  lengths {[round(e - s) for s, e in leans]}  shortest gap {round(min(gaps)) if gaps else "-"}s')
     if whos: print('focus', [(w[1], round(w[2])) for w in whos])
     bad = bool(errs)
+    for act, left, end in acts:   # letting go mid-show is only fair once the camera has lost sight or hit its longest hold
+        if STRICT and left and left[1] == act and left[2] not in ('lie', 'sleep') and left[4] < 2.5 and left[0] < 58:
+            print(f'FAIL: camera let go of {act} mid-show'); bad = True
     if STRICT:
         if hops: print('FAIL: focus hopped between animals', hops); bad = True
         if gaps and min(gaps) < 15: print('FAIL: lean-ins too close together'); bad = True

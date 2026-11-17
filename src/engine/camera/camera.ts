@@ -255,10 +255,10 @@ export function freeMove(dt) {
 let clipK = 1;
 const _rc = new THREE.Vector3(),
   _trueCam = new THREE.Vector3();
-function solidAt(x, y, z, includeRoof = true) {
+function solidAt(x, y, z, includeRoof = true, terrainOnly = false) {
   const g = groundTop(x, z);
   if (y < g + 1.4) return true;
-  return CAM.solid(x, y, z, g, includeRoof);
+  return !terrainOnly && CAM.solid(x, y, z, g, includeRoof);
 }
 const _losDir = new THREE.Vector3();
 /**
@@ -285,20 +285,22 @@ export function camClipBegin(dt) {
     dy = _trueCam.y - f.y,
     dz = _trueCam.z - f.z,
     L = Math.hypot(dx, dy, dz);
+  // from the island orbit's distance a canopy is a small, see-through thing; only hills pull the lens in there
+  const orbit = state.camMode === "orbit";
   let want = 1;
   if (L > 1) {
     for (let d = 5; d <= L; d += 2.5) {
       const k = d / L;
       // The shelter roof is an open canopy, not a terrain collision surface for the camera.
       // Treating it as a hard blocker here pulls the orbit camera toward the island center.
-      if (solidAt(f.x + dx * k, f.y + dy * k, f.z + dz * k, false)) {
+      if (solidAt(f.x + dx * k, f.y + dy * k, f.z + dz * k, false, orbit)) {
         want = Math.max(0.08, (d - 6) / L);
         break;
       }
     }
   }
-  clipK =
-    want < clipK ? want : clipK + (want - clipK) * (1 - Math.exp(-3 * dt));
+  // pull in quickly but not in a single frame (the ground clamp below keeps the lens out of the ground meanwhile); ease back out slowly
+  clipK += (want - clipK) * (1 - Math.exp(-(want < clipK ? (orbit ? 6 : 12) : 3) * dt));
   camera.position.set(f.x + dx * clipK, f.y + dy * clipK, f.z + dz * clipK);
   const g = groundTop(camera.position.x, camera.position.z);
   if (g > -40 && camera.position.y < g + 2.2) camera.position.y = g + 2.2;
